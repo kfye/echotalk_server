@@ -3,8 +3,12 @@ package user
 import (
 	"errors"
 
+	"github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
 )
+
+// ErrDuplicateEmail 邮箱唯一键冲突（并发注册竞态兜底）。
+var ErrDuplicateEmail = errors.New("duplicate email")
 
 // Repository 用户数据访问。
 type Repository struct {
@@ -16,9 +20,14 @@ func NewRepository(db *gorm.DB) *Repository {
 	return &Repository{db: db}
 }
 
-// Create 新建用户。
+// Create 新建用户。命中 email 唯一键冲突时返回 ErrDuplicateEmail。
 func (r *Repository) Create(u *User) error {
-	return r.db.Create(u).Error
+	err := r.db.Create(u).Error
+	var myErr *mysql.MySQLError
+	if errors.As(err, &myErr) && myErr.Number == 1062 {
+		return ErrDuplicateEmail
+	}
+	return err
 }
 
 // FindByEmail 按邮箱查询；不存在返回 (nil, nil)。

@@ -42,12 +42,12 @@ func main() {
 	if err != nil {
 		logger.Fatal("init redis failed: " + err.Error())
 	}
-	_ = rdb // 预留：缓存 / 限流计数 / TTS 结果缓存
 
 	jwtManager := jwt.NewManager(cfg.JWT.Secret, cfg.JWT.AccessTTL, cfg.JWT.RefreshTTL, cfg.JWT.Issuer)
 	speechGW := speech.NewGateway(iflytek.NewISEProvider(cfg.Iflytek), logger)
 	payChannel := channel.NewMockChannel()
 	codeSender := codesender.NewMockSender()
+	codeStore := codesender.NewRedisCodeStore(rdb)
 
 	engine := router.Setup(router.Deps{
 		Config:     cfg,
@@ -57,6 +57,7 @@ func main() {
 		Speech:     speechGW,
 		PayChannel: payChannel,
 		CodeSender: codeSender,
+		CodeStore:  codeStore,
 	})
 
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)

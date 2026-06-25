@@ -26,6 +26,7 @@ type Deps struct {
 	Speech     *speech.Gateway
 	PayChannel channel.PaymentChannel
 	CodeSender codesender.CodeSender
+	CodeStore  codesender.CodeStore
 }
 
 // Setup 构建 gin 引擎并注册所有模块路由。
@@ -44,7 +45,7 @@ func Setup(d Deps) *gin.Engine {
 	})
 
 	api := engine.Group("/api/v1")
-	user.RegisterRoutes(api, d.DB, d.JWT, d.CodeSender)
+	user.RegisterRoutes(api, d.DB, d.JWT, d.CodeSender, d.CodeStore)
 	payment.RegisterRoutes(api, d.DB, d.JWT, d.PayChannel)
 	// content / training / ops 模块路由待接入。
 	// training 模块将通过 d.Speech 调用语音评测网关。

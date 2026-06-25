@@ -55,6 +55,8 @@ var (
 	ErrPasswordWrong = New(11003, "密码错误")
 	ErrTokenInvalid  = NewHTTP(11004, http.StatusUnauthorized, "令牌无效")
 	ErrCodeInvalid   = New(11005, "验证码错误或已过期")
+	// ErrInvalidCredentials 登录失败统一文案，防用户枚举（不区分账号不存在/密码错误）。
+	ErrInvalidCredentials = New(11006, "账号或密码错误")
 )
 
 // payment 14xxx

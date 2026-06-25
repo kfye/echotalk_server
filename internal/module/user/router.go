@@ -10,9 +10,9 @@ import (
 )
 
 // RegisterRoutes 装配 user 模块路由。
-func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, jwtManager *jwt.Manager, sender codesender.CodeSender) {
+func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, jwtManager *jwt.Manager, sender codesender.CodeSender, store codesender.CodeStore) {
 	repo := NewRepository(db)
-	svc := NewService(repo, jwtManager, sender)
+	svc := NewService(repo, jwtManager, sender, store)
 	h := NewHandler(svc)
 
 	pub := rg.Group("/user")
