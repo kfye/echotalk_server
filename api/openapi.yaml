@@ -1,0 +1,569 @@
+openapi: 3.0.3
+info:
+  title: EchoTalk API
+  version: 0.1.0
+  description: >
+    EchoTalk 后台 OpenAPI 契约（三端对齐的唯一接口来源）。
+    本批覆盖：账号(account) / 内容(content) / 系统(system) 三块；训练、会员/支付下一批补。
+    响应统一信封 {code,msg,data,request_id} 与错误码规则见 docs/api-conventions.md。
+
+servers:
+  - url: /
+    description: 健康检查在根路径
+  - url: /api/v1
+    description: 业务接口基址
+
+tags:
+  - name: system
+    description: 系统/公共
+  - name: account
+    description: 账号体系
+  - name: content
+    description: 内容（App 端）
+  - name: content-admin
+    description: 内容管理（管理端）
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ---------------- 系统 system ----------------
+  /healthz:
+    get:
+      tags: [system]
+      summary: 健康检查
+      security: []
+      servers:
+        - url: /
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          status: { type: string, example: ok }
+
+  /system/config:
+    get:
+      tags: [system]
+      summary: App 启动配置
+      description: App 启动时拉取的全局配置（版本/协议/公告等）。
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/SystemConfig" }
+
+  /system/upload/token:
+    post:
+      tags: [system]
+      summary: 获取媒体直传凭证
+      description: 返回 COS 临时直传签名，App 录音上传与管理端内容上传共用。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [biz, filename]
+              properties:
+                biz:
+                  type: string
+                  description: 业务场景
+                  enum: [record, video, cover, subtitle]
+                filename: { type: string, example: "abc.wav" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/UploadToken" }
+        "401": { $ref: "#/components/responses/Err401" }
+
+  # ---------------- 账号 account ----------------
+  /user/register:
+    post:
+      tags: [account]
+      summary: 注册
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, code]
+              properties:
+                email: { type: string, format: email, example: "dev@echotalk.com" }
+                password: { type: string, minLength: 6, maxLength: 32, example: "secret123" }
+                nickname: { type: string, maxLength: 64, example: "dev" }
+                code: { type: string, description: "验证码（内测固定码 123456）", example: "123456" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/User" }
+        "400": { $ref: "#/components/responses/Err400" }
+
+  /user/login:
+    post:
+      tags: [account]
+      summary: 登录
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        "200":
+          description: OK（业务失败如密码错误也返回 200，见 code）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/TokenPair" }
+        "400": { $ref: "#/components/responses/Err400" }
+
+  /user/refresh:
+    post:
+      tags: [account]
+      summary: 刷新令牌
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/TokenPair" }
+        "401": { $ref: "#/components/responses/Err401" }
+
+  /user/logout:
+    post:
+      tags: [account]
+      summary: 登出
+      responses:
+        "200": { $ref: "#/components/responses/OK" }
+        "401": { $ref: "#/components/responses/Err401" }
+
+  /user/send-code:
+    post:
+      tags: [account]
+      summary: 发送验证码（内测固定码）
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        "200": { $ref: "#/components/responses/OK" }
+        "400": { $ref: "#/components/responses/Err400" }
+
+  /user/profile:
+    get:
+      tags: [account]
+      summary: 个人信息
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/UserProfile" }
+        "401": { $ref: "#/components/responses/Err401" }
+    put:
+      tags: [account]
+      summary: 更新昵称/头像
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nickname: { type: string, maxLength: 64 }
+                avatar: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/UserProfile" }
+        "400": { $ref: "#/components/responses/Err400" }
+        "401": { $ref: "#/components/responses/Err401" }
+
+  # ---------------- 内容 content（App 端）----------------
+  /content/videos:
+    get:
+      tags: [content]
+      summary: 内容列表
+      description: 分页 + 分类/难度筛选；返回付费锁标识 locked（服务端计算）。
+      security:
+        - bearerAuth: []
+        - {}
+      parameters:
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: page_size, in: query, schema: { type: integer, default: 20 } }
+        - { name: category, in: query, schema: { type: string } }
+        - { name: difficulty, in: query, schema: { type: integer, minimum: 1, maximum: 5 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: "#/components/schemas/PageData"
+                          - type: object
+                            properties:
+                              list:
+                                type: array
+                                items: { $ref: "#/components/schemas/VideoListItem" }
+
+  /content/videos/{id}:
+    get:
+      tags: [content]
+      summary: 内容详情
+      description: 含字幕文件地址、HLS 播放地址、付费/解锁状态。
+      security:
+        - bearerAuth: []
+        - {}
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/VideoDetail" }
+        "404": { $ref: "#/components/responses/Err404" }
+
+  # ---------------- 内容管理端 content-admin ----------------
+  /admin/videos:
+    get:
+      tags: [content-admin]
+      summary: 管理列表（含草稿/下架）
+      parameters:
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: page_size, in: query, schema: { type: integer, default: 20 } }
+        - { name: status, in: query, description: "0草稿 1上架 2下架", schema: { type: integer } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: "#/components/schemas/PageData"
+                          - type: object
+                            properties:
+                              list:
+                                type: array
+                                items: { $ref: "#/components/schemas/VideoDetail" }
+        "401": { $ref: "#/components/responses/Err401" }
+    post:
+      tags: [content-admin]
+      summary: 新增视频
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VideoInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/VideoDetail" }
+        "400": { $ref: "#/components/responses/Err400" }
+        "401": { $ref: "#/components/responses/Err401" }
+
+  /admin/videos/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    put:
+      tags: [content-admin]
+      summary: 编辑视频
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VideoInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/VideoDetail" }
+        "401": { $ref: "#/components/responses/Err401" }
+        "404": { $ref: "#/components/responses/Err404" }
+    delete:
+      tags: [content-admin]
+      summary: 删除视频（软删）
+      responses:
+        "200": { $ref: "#/components/responses/OK" }
+        "401": { $ref: "#/components/responses/Err401" }
+        "404": { $ref: "#/components/responses/Err404" }
+
+  /admin/videos/{id}/status:
+    patch:
+      tags: [content-admin]
+      summary: 上下架 / 免费付费切换
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { type: integer, description: "0草稿 1上架 2下架" }
+                is_free: { type: boolean, description: "是否免费" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/VideoDetail" }
+        "401": { $ref: "#/components/responses/Err401" }
+        "404": { $ref: "#/components/responses/Err404" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # 统一响应信封
+    Envelope:
+      type: object
+      required: [code, msg]
+      properties:
+        code: { type: integer, example: 0, description: "0=成功，非0见错误码表" }
+        msg: { type: string, example: ok }
+        data: { description: "业务数据，失败时省略" }
+        request_id: { type: string, example: "a1b2c3d4" }
+
+    PageData:
+      type: object
+      properties:
+        list: { type: array, items: {} }
+        total: { type: integer, format: int64, example: 120 }
+        page: { type: integer, example: 1 }
+        page_size: { type: integer, example: 20 }
+
+    TokenPair:
+      type: object
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+
+    User:
+      type: object
+      properties:
+        id: { type: integer, format: int64, example: 1 }
+        email: { type: string, format: email }
+        nickname: { type: string }
+        status: { type: integer, description: "1正常 0禁用" }
+        created_at: { type: string, format: date-time }
+
+    UserProfile:
+      allOf:
+        - $ref: "#/components/schemas/User"
+        - type: object
+          properties:
+            phone: { type: string }
+            avatar: { type: string }
+
+    VideoListItem:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        title: { type: string }
+        cover_url: { type: string }
+        duration: { type: integer, description: "秒" }
+        difficulty: { type: integer, description: "1-5" }
+        category: { type: string }
+        is_free: { type: boolean }
+        locked: { type: boolean, description: "服务端计算：当前用户是否被付费墙拦住" }
+
+    VideoDetail:
+      allOf:
+        - $ref: "#/components/schemas/VideoListItem"
+        - type: object
+          properties:
+            description: { type: string }
+            hls_url: { type: string, description: "HLS 播放地址（locked=true 时可能为空）" }
+            subtitle_en_url: { type: string, description: "英文字幕文件地址（含句级时间戳）" }
+            subtitle_cn_url: { type: string, description: "中文字幕文件地址" }
+            status: { type: integer, description: "0草稿 1上架 2下架" }
+
+    VideoInput:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, maxLength: 128 }
+        description: { type: string, maxLength: 512 }
+        cover_url: { type: string }
+        hls_url: { type: string }
+        subtitle_en_url: { type: string }
+        subtitle_cn_url: { type: string }
+        duration: { type: integer }
+        difficulty: { type: integer, minimum: 1, maximum: 5 }
+        category: { type: string }
+        is_free: { type: boolean }
+        sort: { type: integer }
+
+    SystemConfig:
+      type: object
+      properties:
+        latest_version: { type: string, example: "1.0.0" }
+        min_version: { type: string, example: "1.0.0" }
+        force_update: { type: boolean }
+        agreement_url: { type: string }
+        privacy_url: { type: string }
+        notice: { type: string, description: "公告，可空" }
+        contact: { type: string, description: "客服联系方式" }
+
+    UploadToken:
+      type: object
+      description: COS 直传所需的临时凭证（字段随接入实现细化）。
+      properties:
+        provider: { type: string, example: cos }
+        bucket: { type: string }
+        region: { type: string }
+        key: { type: string, description: "对象 key" }
+        token: { type: string, description: "临时签名/凭证" }
+        expire_at: { type: string, format: date-time }
+        cdn_base: { type: string, description: "回放用 CDN 域名前缀" }
+
+  responses:
+    OK:
+      description: 操作成功
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Envelope" }
+    Err400:
+      description: 参数错误
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Envelope" }
+          example: { code: 10400, msg: "email 必须是有效邮箱地址", request_id: "a1b2c3d4" }
+    Err401:
+      description: 未授权/登录失效
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Envelope" }
+          example: { code: 10401, msg: "未授权或登录失效", request_id: "a1b2c3d4" }
+    Err403:
+      description: 无访问权限
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Envelope" }
+          example: { code: 10403, msg: "无访问权限", request_id: "a1b2c3d4" }
+    Err404:
+      description: 资源不存在
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Envelope" }
+          example: { code: 10404, msg: "资源不存在", request_id: "a1b2c3d4" }
+    Err500:
+      description: 服务器内部错误
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Envelope" }
+          example: { code: 10500, msg: "服务器内部错误", request_id: "a1b2c3d4" }

@@ -1,0 +1,67 @@
+package main
+
+import (
+	"flag"
+	"fmt"
+	"log"
+
+	"github.com/echotalk/echotalk_server/internal/bootstrap"
+	"github.com/echotalk/echotalk_server/internal/config"
+	"github.com/echotalk/echotalk_server/internal/module/payment/channel"
+	"github.com/echotalk/echotalk_server/internal/module/user/codesender"
+	"github.com/echotalk/echotalk_server/internal/pkg/jwt"
+	"github.com/echotalk/echotalk_server/internal/router"
+	"github.com/echotalk/echotalk_server/internal/speech"
+	"github.com/echotalk/echotalk_server/internal/speech/iflytek"
+)
+
+func main() {
+	configPath := flag.String("config", "configs/config.yaml", "path to config file")
+	flag.Parse()
+
+	cfg, err := config.Load(*configPath)
+	if err != nil {
+		log.Fatalf("load config: %v", err)
+	}
+
+	logger, err := bootstrap.InitLogger(cfg.Log)
+	if err != nil {
+		log.Fatalf("init logger: %v", err)
+	}
+	defer func() { _ = logger.Sync() }()
+
+	db, err := bootstrap.InitDB(cfg.MySQL)
+	if err != nil {
+		logger.Fatal("init db failed: " + err.Error())
+	}
+	if err := bootstrap.AutoMigrate(db); err != nil {
+		logger.Fatal("auto migrate failed: " + err.Error())
+	}
+
+	rdb, err := bootstrap.InitRedis(cfg.Redis)
+	if err != nil {
+		logger.Fatal("init redis failed: " + err.Error())
+	}
+	_ = rdb // 预留：缓存 / 限流计数 / TTS 结果缓存
+
+	jwtManager := jwt.NewManager(cfg.JWT.Secret, cfg.JWT.AccessTTL, cfg.JWT.RefreshTTL, cfg.JWT.Issuer)
+	speechGW := speech.NewGateway(iflytek.NewISEProvider(cfg.Iflytek), logger)
+	payChannel := channel.NewMockChannel()
+	codeSender := codesender.NewMockSender()
+
+	engine := router.Setup(router.Deps{
+		Config:     cfg,
+		DB:         db,
+		Logger:     logger,
+		JWT:        jwtManager,
+		Speech:     speechGW,
+		PayChannel: payChannel,
+		CodeSender: codeSender,
+	})
+
+	addr := fmt.Sprintf(":%d", cfg.Server.Port)
+	logger.Info("server starting on " + addr)
+	if err := engine.Run(addr); err != nil {
+		logger.Fatal("server exited: " + err.Error())
+	}
+}

@@ -27,6 +27,9 @@ go.work.sum
 # env file
 .env
 
+# 本地配置（含开发密钥），仓库只保留 config.example.yaml
+configs/config.yaml
+
 # Editor/IDE
 # .idea/
 # .vscode/

@@ -1,0 +1,62 @@
+# 单机全包：Nginx + Go 应用 + MySQL + Redis。2 核 2G 小机器：每容器设内存上限防 OOM。
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/echotalk.conf:/etc/nginx/conf.d/echotalk.conf:ro
+    depends_on:
+      - app
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    env_file:
+      - ../.env
+    expose:
+      - "8080"
+    depends_on:
+      - mysql
+      - redis
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+
+  mysql:
+    image: mysql:8.0
+    command:
+      - --innodb-buffer-pool-size=192M
+      - --performance-schema=OFF
+      - --max-connections=50
+    environment:
+      MYSQL_DATABASE: echotalk
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    # 不对公网开放：仅容器内网互通，不映射端口到宿主机公网。
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redis_data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 160M
+
+volumes:
+  mysql_data:
+  redis_data:
