@@ -33,3 +33,18 @@ func Auth(jwtManager *jwt.Manager) gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// OptionalAuth 可选鉴权：带有效 access 令牌则注入 userID，无/无效令牌也放行（匿名）。
+// 用于内容浏览这类匿名可访问、但登录后能解锁付费内容的接口。
+func OptionalAuth(jwtManager *jwt.Manager) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		header := c.GetHeader("Authorization")
+		token := strings.TrimPrefix(header, "Bearer ")
+		if token != "" && token != header {
+			if claims, err := jwtManager.Parse(token); err == nil && claims.Type == jwt.AccessToken {
+				c.Set(ContextUserID, claims.UserID)
+			}
+		}
+		c.Next()
+	}
+}

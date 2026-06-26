@@ -8,6 +8,7 @@ import (
 
 	"github.com/echotalk/echotalk_server/internal/config"
 	"github.com/echotalk/echotalk_server/internal/middleware"
+	"github.com/echotalk/echotalk_server/internal/module/content"
 	"github.com/echotalk/echotalk_server/internal/module/payment"
 	"github.com/echotalk/echotalk_server/internal/module/payment/channel"
 	"github.com/echotalk/echotalk_server/internal/module/user"
@@ -29,6 +30,7 @@ type Deps struct {
 	CodeSender codesender.CodeSender
 	CodeStore  codesender.CodeStore
 	TokenStore tokenstore.TokenStore
+	Members    content.MembershipChecker
 }
 
 // Setup 构建 gin 引擎并注册所有模块路由。
@@ -48,8 +50,9 @@ func Setup(d Deps) *gin.Engine {
 
 	api := engine.Group("/api/v1")
 	user.RegisterRoutes(api, d.DB, d.JWT, d.CodeSender, d.CodeStore, d.TokenStore)
+	content.RegisterRoutes(api, d.DB, d.JWT, d.Members)
 	payment.RegisterRoutes(api, d.DB, d.JWT, d.PayChannel)
-	// content / training / ops 模块路由待接入。
+	// training / ops 模块路由待接入。
 	// training 模块将通过 d.Speech 调用语音评测网关。
 	_ = d.Speech
 

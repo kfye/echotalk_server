@@ -59,6 +59,11 @@ var (
 	ErrInvalidCredentials = New(11006, "账号或密码错误")
 )
 
+// content 12xxx
+var (
+	ErrContentNotFound = NewHTTP(12001, http.StatusNotFound, "内容不存在")
+)
+
 // payment 14xxx
 var (
 	ErrOrderNotFound = New(14001, "订单不存在")

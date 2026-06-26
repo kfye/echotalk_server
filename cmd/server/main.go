@@ -7,6 +7,7 @@ import (
 
 	"github.com/echotalk/echotalk_server/internal/bootstrap"
 	"github.com/echotalk/echotalk_server/internal/config"
+	"github.com/echotalk/echotalk_server/internal/module/content"
 	"github.com/echotalk/echotalk_server/internal/module/payment/channel"
 	"github.com/echotalk/echotalk_server/internal/module/user/codesender"
 	"github.com/echotalk/echotalk_server/internal/module/user/tokenstore"
@@ -50,6 +51,7 @@ func main() {
 	codeSender := codesender.NewMockSender()
 	codeStore := codesender.NewRedisCodeStore(rdb)
 	tokenStore := tokenstore.NewRedisTokenStore(rdb)
+	members := content.NewNoMembershipChecker() // Day5 换真实会员实现
 
 	engine := router.Setup(router.Deps{
 		Config:     cfg,
@@ -61,6 +63,7 @@ func main() {
 		CodeSender: codeSender,
 		CodeStore:  codeStore,
 		TokenStore: tokenStore,
+		Members:    members,
 	})
 
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)

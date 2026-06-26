@@ -1,0 +1,16 @@
+[
+  {
+    "title": "Shadowing Lesson 1",
+    "description": "影子跟读示例课程 1",
+    "cover_url": "https://cdn.example.com/echotalk/lesson1/cover.jpg",
+    "hls_url": "https://cdn.example.com/echotalk/lesson1/lesson.m3u8",
+    "subtitle_en_url": "https://cdn.example.com/echotalk/lesson1/subtitle.json",
+    "subtitle_cn_url": "",
+    "duration": 120,
+    "difficulty": 2,
+    "category": "daily",
+    "is_free": true,
+    "sort": 100,
+    "status": 1
+  }
+]
