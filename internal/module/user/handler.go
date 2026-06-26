@@ -55,7 +55,7 @@ func (h *Handler) Login(c *gin.Context) {
 		response.Error(c, errcode.ErrParam.WithMsg(validatorx.Message(err)))
 		return
 	}
-	pair, err := h.svc.Login(req)
+	pair, err := h.svc.Login(c.Request.Context(), req)
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -70,12 +70,22 @@ func (h *Handler) Refresh(c *gin.Context) {
 		response.Error(c, errcode.ErrParam.WithMsg(validatorx.Message(err)))
 		return
 	}
-	pair, err := h.svc.Refresh(req)
+	pair, err := h.svc.Refresh(c.Request.Context(), req)
 	if err != nil {
 		response.Error(c, err)
 		return
 	}
 	response.Success(c, pair)
+}
+
+// Logout 登出：撤销当前用户全部 refresh 会话（需鉴权）。
+func (h *Handler) Logout(c *gin.Context) {
+	uid := c.GetUint(middleware.ContextUserID)
+	if err := h.svc.Logout(c.Request.Context(), uid); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, nil)
 }
 
 // Profile 个人中心（需鉴权）。

@@ -6,13 +6,14 @@ import (
 
 	"github.com/echotalk/echotalk_server/internal/middleware"
 	"github.com/echotalk/echotalk_server/internal/module/user/codesender"
+	"github.com/echotalk/echotalk_server/internal/module/user/tokenstore"
 	"github.com/echotalk/echotalk_server/internal/pkg/jwt"
 )
 
 // RegisterRoutes 装配 user 模块路由。
-func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, jwtManager *jwt.Manager, sender codesender.CodeSender, store codesender.CodeStore) {
+func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, jwtManager *jwt.Manager, sender codesender.CodeSender, store codesender.CodeStore, tokens tokenstore.TokenStore) {
 	repo := NewRepository(db)
-	svc := NewService(repo, jwtManager, sender, store)
+	svc := NewService(repo, jwtManager, sender, store, tokens)
 	h := NewHandler(svc)
 
 	pub := rg.Group("/user")
@@ -27,5 +28,6 @@ func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, jwtManager *jwt.Manager, s
 	auth.Use(middleware.Auth(jwtManager))
 	{
 		auth.GET("/profile", h.Profile)
+		auth.POST("/logout", h.Logout)
 	}
 }

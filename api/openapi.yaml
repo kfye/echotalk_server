@@ -189,6 +189,7 @@ paths:
     post:
       tags: [account]
       summary: 登出
+      description: 撤销当前用户全部 refresh 会话（多端下线）。已签发的 access 令牌在其过期前仍有效。
       responses:
         "200": { $ref: "#/components/responses/OK" }
         "401": { $ref: "#/components/responses/Err401" }

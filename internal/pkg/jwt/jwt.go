@@ -1,7 +1,10 @@
 // Package jwt 封装 access + refresh 双令牌的签发与校验。
+// refresh 令牌带 jti，配合服务端白名单实现可撤销（登出）。
 package jwt
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"time"
 
@@ -16,7 +19,7 @@ const (
 	RefreshToken TokenType = "refresh"
 )
 
-// Claims 自定义声明。
+// Claims 自定义声明。RegisteredClaims.ID 即 jti。
 type Claims struct {
 	UserID uint      `json:"uid"`
 	Type   TokenType `json:"typ"`
@@ -42,31 +45,43 @@ func NewManager(secret string, accessTTL, refreshTTL time.Duration, issuer strin
 	return &Manager{secret: []byte(secret), accessTTL: accessTTL, refreshTTL: refreshTTL, issuer: issuer}
 }
 
-// GeneratePair 为用户签发一对令牌。
-func (m *Manager) GeneratePair(userID uint) (Pair, error) {
-	access, err := m.sign(userID, AccessToken, m.accessTTL)
+// RefreshTTL 返回 refresh 令牌有效期（供白名单设置同样的 TTL）。
+func (m *Manager) RefreshTTL() time.Duration { return m.refreshTTL }
+
+// GeneratePair 为用户签发一对令牌，并返回 refresh 令牌的 jti（用于服务端白名单）。
+func (m *Manager) GeneratePair(userID uint) (Pair, string, error) {
+	access, _, err := m.sign(userID, AccessToken, m.accessTTL)
 	if err != nil {
-		return Pair{}, err
+		return Pair{}, "", err
 	}
-	refresh, err := m.sign(userID, RefreshToken, m.refreshTTL)
+	refresh, refreshJTI, err := m.sign(userID, RefreshToken, m.refreshTTL)
 	if err != nil {
-		return Pair{}, err
+		return Pair{}, "", err
 	}
-	return Pair{AccessToken: access, RefreshToken: refresh}, nil
+	return Pair{AccessToken: access, RefreshToken: refresh}, refreshJTI, nil
 }
 
-func (m *Manager) sign(userID uint, typ TokenType, ttl time.Duration) (string, error) {
+func (m *Manager) sign(userID uint, typ TokenType, ttl time.Duration) (string, string, error) {
 	now := time.Now()
+	jti, err := genJTI()
+	if err != nil {
+		return "", "", err
+	}
 	claims := Claims{
 		UserID: userID,
 		Type:   typ,
 		RegisteredClaims: gojwt.RegisteredClaims{
+			ID:        jti,
 			Issuer:    m.issuer,
 			IssuedAt:  gojwt.NewNumericDate(now),
 			ExpiresAt: gojwt.NewNumericDate(now.Add(ttl)),
 		},
 	}
-	return gojwt.NewWithClaims(gojwt.SigningMethodHS256, claims).SignedString(m.secret)
+	signed, err := gojwt.NewWithClaims(gojwt.SigningMethodHS256, claims).SignedString(m.secret)
+	if err != nil {
+		return "", "", err
+	}
+	return signed, jti, nil
 }
 
 // Parse 校验并解析令牌。
@@ -87,14 +102,10 @@ func (m *Manager) Parse(token string) (*Claims, error) {
 	return claims, nil
 }
 
-// Refresh 用 refresh 令牌换取新的令牌对。
-func (m *Manager) Refresh(refreshToken string) (Pair, error) {
-	claims, err := m.Parse(refreshToken)
-	if err != nil {
-		return Pair{}, err
+func genJTI() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
 	}
-	if claims.Type != RefreshToken {
-		return Pair{}, errors.New("not a refresh token")
-	}
-	return m.GeneratePair(claims.UserID)
+	return hex.EncodeToString(b), nil
 }

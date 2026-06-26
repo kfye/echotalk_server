@@ -9,6 +9,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/echotalk/echotalk_server/internal/module/user/codesender"
+	"github.com/echotalk/echotalk_server/internal/module/user/tokenstore"
 	"github.com/echotalk/echotalk_server/internal/pkg/errcode"
 	"github.com/echotalk/echotalk_server/internal/pkg/jwt"
 )
@@ -30,11 +31,24 @@ type Service struct {
 	jwt    *jwt.Manager
 	sender codesender.CodeSender
 	store  codesender.CodeStore
+	tokens tokenstore.TokenStore
 }
 
 // NewService 创建服务。
-func NewService(repo *Repository, jwtManager *jwt.Manager, sender codesender.CodeSender, store codesender.CodeStore) *Service {
-	return &Service{repo: repo, jwt: jwtManager, sender: sender, store: store}
+func NewService(repo *Repository, jwtManager *jwt.Manager, sender codesender.CodeSender, store codesender.CodeStore, tokens tokenstore.TokenStore) *Service {
+	return &Service{repo: repo, jwt: jwtManager, sender: sender, store: store, tokens: tokens}
+}
+
+// issuePair 签发令牌对，并把 refresh jti 加入白名单。
+func (s *Service) issuePair(ctx context.Context, userID uint) (jwt.Pair, error) {
+	pair, refreshJTI, err := s.jwt.GeneratePair(userID)
+	if err != nil {
+		return jwt.Pair{}, errcode.ErrServer
+	}
+	if err := s.tokens.SaveRefresh(ctx, userID, refreshJTI, s.jwt.RefreshTTL()); err != nil {
+		return jwt.Pair{}, errcode.ErrServer
+	}
+	return pair, nil
 }
 
 // SendCode 生成并送达验证码，落 Redis（带 TTL）。
@@ -90,7 +104,7 @@ var dummyHash, _ = bcrypt.GenerateFromPassword([]byte("dummy-password"), bcrypt.
 
 // Login 校验密码并签发令牌对。
 // 防用户枚举：账号不存在与密码错误统一返回 ErrInvalidCredentials，且耗时一致。
-func (s *Service) Login(req LoginRequest) (jwt.Pair, error) {
+func (s *Service) Login(ctx context.Context, req LoginRequest) (jwt.Pair, error) {
 	u, err := s.repo.FindByEmail(normalizeEmail(req.Email))
 	if err != nil {
 		return jwt.Pair{}, errcode.ErrServer
@@ -102,20 +116,36 @@ func (s *Service) Login(req LoginRequest) (jwt.Pair, error) {
 	if bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(req.Password)) != nil {
 		return jwt.Pair{}, errcode.ErrInvalidCredentials
 	}
-	pair, err := s.jwt.GeneratePair(u.ID)
+	return s.issuePair(ctx, u.ID)
+}
+
+// Refresh 用 refresh 令牌换新令牌对：校验白名单 + 轮换（删旧 jti、存新 jti）。
+func (s *Service) Refresh(ctx context.Context, req RefreshRequest) (jwt.Pair, error) {
+	claims, err := s.jwt.Parse(req.RefreshToken)
+	if err != nil || claims.Type != jwt.RefreshToken {
+		return jwt.Pair{}, errcode.ErrTokenInvalid
+	}
+	ok, err := s.tokens.IsRefreshValid(ctx, claims.UserID, claims.ID)
 	if err != nil {
 		return jwt.Pair{}, errcode.ErrServer
 	}
+	if !ok { // 已登出或已被轮换
+		return jwt.Pair{}, errcode.ErrTokenInvalid
+	}
+	pair, err := s.issuePair(ctx, claims.UserID)
+	if err != nil {
+		return jwt.Pair{}, err
+	}
+	_ = s.tokens.RevokeRefresh(ctx, claims.UserID, claims.ID) // 旧 refresh 作废，防重放
 	return pair, nil
 }
 
-// Refresh 用 refresh 令牌换新令牌对。
-func (s *Service) Refresh(req RefreshRequest) (jwt.Pair, error) {
-	pair, err := s.jwt.Refresh(req.RefreshToken)
-	if err != nil {
-		return jwt.Pair{}, errcode.ErrTokenInvalid
+// Logout 撤销该用户全部 refresh 会话（多端下线）。
+func (s *Service) Logout(ctx context.Context, userID uint) error {
+	if err := s.tokens.RevokeAllRefresh(ctx, userID); err != nil {
+		return errcode.ErrServer
 	}
-	return pair, nil
+	return nil
 }
 
 // Profile 查询个人信息。

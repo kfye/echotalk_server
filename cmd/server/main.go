@@ -9,6 +9,7 @@ import (
 	"github.com/echotalk/echotalk_server/internal/config"
 	"github.com/echotalk/echotalk_server/internal/module/payment/channel"
 	"github.com/echotalk/echotalk_server/internal/module/user/codesender"
+	"github.com/echotalk/echotalk_server/internal/module/user/tokenstore"
 	"github.com/echotalk/echotalk_server/internal/pkg/jwt"
 	"github.com/echotalk/echotalk_server/internal/router"
 	"github.com/echotalk/echotalk_server/internal/speech"
@@ -48,6 +49,7 @@ func main() {
 	payChannel := channel.NewMockChannel()
 	codeSender := codesender.NewMockSender()
 	codeStore := codesender.NewRedisCodeStore(rdb)
+	tokenStore := tokenstore.NewRedisTokenStore(rdb)
 
 	engine := router.Setup(router.Deps{
 		Config:     cfg,
@@ -58,6 +60,7 @@ func main() {
 		PayChannel: payChannel,
 		CodeSender: codeSender,
 		CodeStore:  codeStore,
+		TokenStore: tokenStore,
 	})
 
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
