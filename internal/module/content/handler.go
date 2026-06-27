@@ -1,7 +1,6 @@
 package content
 
 import (
-	"fmt"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -22,7 +21,7 @@ func NewHandler(svc *Service) *Handler { return &Handler{svc: svc} }
 
 // --- App ---
 
-// List 内容列表（可选鉴权）。
+// List 内容列表（可选鉴权）。ß
 func (h *Handler) List(c *gin.Context) {
 	var q ListQuery
 	if err := c.ShouldBindQuery(&q); err != nil {
@@ -30,7 +29,6 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 	uid := c.GetUint(middleware.ContextUserID)
-	fmt.Printf("List content: user_id=%d, query=%+v\n", uid, q)
 	items, total, page, pageSize, err := h.svc.List(c.Request.Context(), uid, q)
 	if err != nil {
 		response.Error(c, err)
