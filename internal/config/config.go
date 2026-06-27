@@ -57,6 +57,7 @@ type COSConfig struct {
 	Region    string `mapstructure:"region"`
 	SecretID  string `mapstructure:"secret_id"`
 	SecretKey string `mapstructure:"secret_key"`
+	CDNBase   string `mapstructure:"cdn_base"` // 可选：CDN 加速域名（如 https://cdn.example.com），空则回落 COS 桶地址
 }
 
 type LogConfig struct {

@@ -1,7 +1,7 @@
 [
   {
-    "title": "Shadowing Lesson 1",
-    "description": "影子跟读示例课程 1",
+    "title": "Shadowing Lesson 1 (字幕已传CDN)",
+    "description": "影子跟读示例课程 1：字幕直接给 CDN url",
     "cover_url": "https://cdn.example.com/echotalk/lesson1/cover.jpg",
     "hls_url": "https://cdn.example.com/echotalk/lesson1/lesson.m3u8",
     "subtitle_en_url": "https://cdn.example.com/echotalk/lesson1/subtitle.json",
@@ -11,6 +11,19 @@
     "category": "daily",
     "is_free": true,
     "sort": 100,
+    "status": 1
+  },
+  {
+    "title": "Shadowing Lesson 2 (字幕走本地上传)",
+    "description": "影子跟读示例课程 2：字幕给本地路径，由 import 上传 COS 回填 url",
+    "cover_url": "https://cdn.example.com/echotalk/lesson2/cover.jpg",
+    "hls_url": "https://cdn.example.com/echotalk/lesson2/lesson.m3u8",
+    "subtitle_en_file": "docs/samples/subtitle.sample.json",
+    "duration": 150,
+    "difficulty": 3,
+    "category": "daily",
+    "is_free": false,
+    "sort": 90,
     "status": 1
   }
 ]
