@@ -11,6 +11,7 @@ import (
 	"github.com/echotalk/echotalk_server/internal/module/content"
 	"github.com/echotalk/echotalk_server/internal/module/payment"
 	"github.com/echotalk/echotalk_server/internal/module/payment/channel"
+	"github.com/echotalk/echotalk_server/internal/module/training"
 	"github.com/echotalk/echotalk_server/internal/module/user"
 	"github.com/echotalk/echotalk_server/internal/module/user/codesender"
 	"github.com/echotalk/echotalk_server/internal/module/user/tokenstore"
@@ -52,9 +53,8 @@ func Setup(d Deps) *gin.Engine {
 	user.RegisterRoutes(api, d.DB, d.JWT, d.CodeSender, d.CodeStore, d.TokenStore)
 	content.RegisterRoutes(api, d.DB, d.JWT, d.Members)
 	payment.RegisterRoutes(api, d.DB, d.JWT, d.PayChannel)
-	// training / ops 模块路由待接入。
-	// training 模块将通过 d.Speech 调用语音评测网关。
-	_ = d.Speech
+	training.RegisterRoutes(api, d.DB, d.JWT, d.Speech)
+	// ops 模块路由待接入。
 
 	return engine
 }
