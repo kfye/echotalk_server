@@ -15,13 +15,14 @@ type EvaluateInput struct {
 
 // EvaluateResponse 评测结果响应。
 type EvaluateResponse struct {
-	RecordID  uint               `json:"record_id"` // 落库后的训练记录ID
-	Overall   float64            `json:"overall"`   // 总分
-	Accuracy  float64            `json:"accuracy"`  // 发音准确度
-	Fluency   float64            `json:"fluency"`   // 流利度
-	Integrity float64            `json:"integrity"` // 完整度
-	Words     []speech.WordScore `json:"words"`     // 单词级评分
-	Degraded  bool               `json:"degraded"`  // 讯飞不可用时的降级兜底结果
+	RecordID  uint               `json:"record_id"`         // 落库后的训练记录ID
+	Overall   float64            `json:"overall"`           // 总分
+	Accuracy  float64            `json:"accuracy"`          // 发音准确度
+	Fluency   float64            `json:"fluency"`           // 流利度
+	Integrity float64            `json:"integrity"`         // 完整度
+	Words     []speech.WordScore `json:"words"`             // 单词级评分
+	Degraded  bool               `json:"degraded"`          // 讯飞不可用时的降级兜底结果
+	Message   string             `json:"message,omitempty"` // 降级等情形的提示语，正常时为空
 }
 
 // RecordItem 训练历史列表项（不含词级明细，详情再取）。

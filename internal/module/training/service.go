@@ -12,6 +12,9 @@ const (
 	defaultPage     = 1
 	defaultPageSize = 20
 	maxPageSize     = 100
+
+	// degradedMessage 讯飞不可用时返回给客户端的提示语。
+	degradedMessage = "评测服务暂不可用，请稍后重试"
 )
 
 // Service 训练业务逻辑：评测编排 + 历史。
@@ -70,7 +73,7 @@ func (s *Service) Evaluate(ctx context.Context, userID uint, in EvaluateInput, a
 		return nil, errcode.ErrServer
 	}
 
-	return &EvaluateResponse{
+	resp := &EvaluateResponse{
 		RecordID:  rec.ID,
 		Overall:   res.Overall,
 		Accuracy:  res.Accuracy,
@@ -78,7 +81,11 @@ func (s *Service) Evaluate(ctx context.Context, userID uint, in EvaluateInput, a
 		Integrity: res.Integrity,
 		Words:     res.Words,
 		Degraded:  res.Degraded,
-	}, nil
+	}
+	if res.Degraded {
+		resp.Message = degradedMessage
+	}
+	return resp, nil
 }
 
 // History 训练历史分页（按当前用户）。

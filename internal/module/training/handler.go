@@ -12,6 +12,9 @@ import (
 	"github.com/echotalk/echotalk_server/internal/pkg/validatorx"
 )
 
+// maxAudioBytes 上传录音大小上限(8MB)，防小内存机器 OOM。
+const maxAudioBytes = 8 << 20
+
 // Handler 训练 HTTP 处理器。
 type Handler struct {
 	svc *Service
@@ -30,6 +33,10 @@ func (h *Handler) Evaluate(c *gin.Context) {
 	fileHeader, err := c.FormFile("audio")
 	if err != nil {
 		response.Error(c, errcode.ErrParam.WithMsg("缺少音频文件 audio"))
+		return
+	}
+	if fileHeader.Size > maxAudioBytes {
+		response.Error(c, errcode.ErrAudioFormat.WithMsg("音频文件过大(上限8MB)"))
 		return
 	}
 	f, err := fileHeader.Open()
