@@ -32,6 +32,7 @@ type Deps struct {
 	CodeStore  codesender.CodeStore
 	TokenStore tokenstore.TokenStore
 	Members    content.MembershipChecker
+	Audio      training.AudioUploader // 可空：录音存储，nil 时不存
 }
 
 // Setup 构建 gin 引擎并注册所有模块路由。
@@ -53,7 +54,7 @@ func Setup(d Deps) *gin.Engine {
 	user.RegisterRoutes(api, d.DB, d.JWT, d.CodeSender, d.CodeStore, d.TokenStore)
 	content.RegisterRoutes(api, d.DB, d.JWT, d.Members)
 	payment.RegisterRoutes(api, d.DB, d.JWT, d.PayChannel)
-	training.RegisterRoutes(api, d.DB, d.JWT, d.Speech)
+	training.RegisterRoutes(api, d.DB, d.JWT, d.Speech, d.Audio, d.Logger)
 	// ops 模块路由待接入。
 
 	return engine

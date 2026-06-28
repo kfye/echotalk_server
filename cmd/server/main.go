@@ -9,8 +9,10 @@ import (
 	"github.com/echotalk/echotalk_server/internal/config"
 	"github.com/echotalk/echotalk_server/internal/module/content"
 	"github.com/echotalk/echotalk_server/internal/module/payment/channel"
+	"github.com/echotalk/echotalk_server/internal/module/training"
 	"github.com/echotalk/echotalk_server/internal/module/user/codesender"
 	"github.com/echotalk/echotalk_server/internal/module/user/tokenstore"
+	"github.com/echotalk/echotalk_server/internal/pkg/cos"
 	"github.com/echotalk/echotalk_server/internal/pkg/jwt"
 	"github.com/echotalk/echotalk_server/internal/router"
 	"github.com/echotalk/echotalk_server/internal/speech"
@@ -53,6 +55,14 @@ func main() {
 	tokenStore := tokenstore.NewRedisTokenStore(rdb)
 	members := content.NewNoMembershipChecker() // Day5 换真实会员实现
 
+	// 录音存储（可选）：COS 未配置则保持 nil，录音不存，评测照常。
+	var audioUploader training.AudioUploader
+	if up, err := cos.New(cfg.COS); err != nil {
+		logger.Info("COS 未配置，录音不存储: " + err.Error())
+	} else {
+		audioUploader = up
+	}
+
 	engine := router.Setup(router.Deps{
 		Config:     cfg,
 		DB:         db,
@@ -64,6 +74,7 @@ func main() {
 		CodeStore:  codeStore,
 		TokenStore: tokenStore,
 		Members:    members,
+		Audio:      audioUploader,
 	})
 
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)

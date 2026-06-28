@@ -3,6 +3,7 @@
 package cos
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -58,6 +59,20 @@ func (u *Uploader) UploadFile(ctx context.Context, localPath, objectKey string) 
 	objectKey = strings.TrimLeft(objectKey, "/")
 	if _, err := u.client.Object.PutFromFile(ctx, objectKey, localPath, nil); err != nil {
 		return "", fmt.Errorf("cos: 上传 %s 失败: %w", localPath, err)
+	}
+	base := u.bucketBase
+	if u.cdnBase != "" {
+		base = u.cdnBase
+	}
+	return base + "/" + objectKey, nil
+}
+
+// UploadBytes 把内存数据传到 objectKey，返回可访问 URL（优先 CDN 域名）。
+// 适用于无本地文件的场景（如评测录音直接来自 multipart 上传）。
+func (u *Uploader) UploadBytes(ctx context.Context, data []byte, objectKey string) (string, error) {
+	objectKey = strings.TrimLeft(objectKey, "/")
+	if _, err := u.client.Object.Put(ctx, objectKey, bytes.NewReader(data), nil); err != nil {
+		return "", fmt.Errorf("cos: 上传 %s 失败: %w", objectKey, err)
 	}
 	base := u.bucketBase
 	if u.cdnBase != "" {

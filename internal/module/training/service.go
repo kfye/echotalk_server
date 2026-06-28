@@ -3,10 +3,20 @@ package training
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/echotalk/echotalk_server/internal/pkg/errcode"
 	"github.com/echotalk/echotalk_server/internal/speech"
 )
+
+// AudioUploader 录音存储抽象（可空）。cos.Uploader 满足此接口。
+// 设为接口以便 training 模块不直接耦合 COS 实现，且未配置时可传 nil。
+type AudioUploader interface {
+	UploadBytes(ctx context.Context, data []byte, objectKey string) (string, error)
+}
 
 const (
 	defaultPage     = 1
@@ -21,11 +31,13 @@ const (
 type Service struct {
 	repo   *Repository
 	speech *speech.Gateway
+	audio  AudioUploader // 可空：录音存储，nil 时不存
+	logger *zap.Logger
 }
 
-// NewService 创建服务。
-func NewService(repo *Repository, gw *speech.Gateway) *Service {
-	return &Service{repo: repo, speech: gw}
+// NewService 创建服务。audio 可为 nil（未配置 COS 时录音不存储）。
+func NewService(repo *Repository, gw *speech.Gateway, audio AudioUploader, logger *zap.Logger) *Service {
+	return &Service{repo: repo, speech: gw, audio: audio, logger: logger}
 }
 
 func normalizePage(page, pageSize int) (int, int) {
@@ -57,11 +69,16 @@ func (s *Service) Evaluate(ctx context.Context, userID uint, in EvaluateInput, a
 	if err != nil {
 		return nil, errcode.ErrServer
 	}
+
+	// 录音存 COS（优雅降级）：未配置或上传失败不影响评测，audio_url 留空。
+	audioURL := s.uploadAudio(ctx, userID, audio)
+
 	rec := &TrainingRecord{
 		UserID:         userID,
 		VideoID:        in.VideoID,
 		SentenceIndex:  in.SentenceIndex,
 		SentenceText:   in.Text,
+		AudioURL:       audioURL,
 		OverallScore:   res.Overall,
 		AccuracyScore:  res.Accuracy,
 		FluencyScore:   res.Fluency,
@@ -86,6 +103,22 @@ func (s *Service) Evaluate(ctx context.Context, userID uint, in EvaluateInput, a
 		resp.Message = degradedMessage
 	}
 	return resp, nil
+}
+
+// uploadAudio 把录音传 COS，返回可访问 URL；未配置上传器或失败时返回空串（不阻断评测）。
+func (s *Service) uploadAudio(ctx context.Context, userID uint, audio []byte) string {
+	if s.audio == nil {
+		return ""
+	}
+	key := fmt.Sprintf("training/%d/%d.wav", userID, time.Now().UnixNano())
+	url, err := s.audio.UploadBytes(ctx, audio, key)
+	if err != nil {
+		if s.logger != nil {
+			s.logger.Warn("training: 录音存 COS 失败，audio_url 留空", zap.Error(err))
+		}
+		return ""
+	}
+	return url
 }
 
 // History 训练历史分页（按当前用户）。
