@@ -66,8 +66,10 @@ var (
 
 // payment 14xxx
 var (
-	ErrOrderNotFound = New(14001, "订单不存在")
-	ErrPayFailed     = New(14002, "支付失败")
+	ErrOrderNotFound   = New(14001, "订单不存在")
+	ErrPayFailed       = New(14002, "支付失败")
+	ErrProductNotFound = New(14003, "商品不存在")
+	ErrProductOffline  = New(14004, "商品已下架")
 )
 
 // speech 15xxx

@@ -18,6 +18,7 @@ func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, jwtManager *jwt.Manager, c
 	g := rg.Group("/payment")
 	g.Use(middleware.Auth(jwtManager))
 	{
+		g.GET("/products", h.Products)
 		g.POST("/orders", h.CreateOrder)
 	}
 }

@@ -20,6 +20,19 @@ func NewService(repo *Repository, ch channel.PaymentChannel) *Service {
 	return &Service{repo: repo, channel: ch}
 }
 
+// ListProducts 取上架商品列表，供付费墙展示。
+func (s *Service) ListProducts(ctx context.Context) ([]ProductItem, error) {
+	products, err := s.repo.ListOnlineProducts()
+	if err != nil {
+		return nil, errcode.ErrServer
+	}
+	items := make([]ProductItem, 0, len(products))
+	for i := range products {
+		items = append(items, toProductItem(&products[i]))
+	}
+	return items, nil
+}
+
 // CreateOrder 创建订单并通过当前渠道发起支付。
 func (s *Service) CreateOrder(ctx context.Context, userID uint, req CreateOrderRequest) (*Order, error) {
 	order := &Order{

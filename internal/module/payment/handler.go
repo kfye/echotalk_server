@@ -17,6 +17,16 @@ type Handler struct {
 // NewHandler 创建处理器。
 func NewHandler(svc *Service) *Handler { return &Handler{svc: svc} }
 
+// Products 上架商品列表（付费墙，需鉴权）。
+func (h *Handler) Products(c *gin.Context) {
+	items, err := h.svc.ListProducts(c.Request.Context())
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, items)
+}
+
 // CreateOrder 创建订单（需鉴权）。
 func (h *Handler) CreateOrder(c *gin.Context) {
 	var req CreateOrderRequest
