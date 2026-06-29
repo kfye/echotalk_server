@@ -7,7 +7,7 @@ import (
 
 	"github.com/echotalk/echotalk_server/internal/bootstrap"
 	"github.com/echotalk/echotalk_server/internal/config"
-	"github.com/echotalk/echotalk_server/internal/module/content"
+	"github.com/echotalk/echotalk_server/internal/module/payment"
 	"github.com/echotalk/echotalk_server/internal/module/payment/channel"
 	"github.com/echotalk/echotalk_server/internal/module/training"
 	"github.com/echotalk/echotalk_server/internal/module/user/codesender"
@@ -53,7 +53,7 @@ func main() {
 	codeSender := codesender.NewMockSender()
 	codeStore := codesender.NewRedisCodeStore(rdb)
 	tokenStore := tokenstore.NewRedisTokenStore(rdb)
-	members := content.NewNoMembershipChecker() // Day5 换真实会员实现
+	members := payment.NewMembershipChecker(db) // 真实会员门禁（查 memberships 表）
 
 	// 录音存储（可选）：COS 未配置则保持 nil，录音不存，评测照常。
 	var audioUploader training.AudioUploader

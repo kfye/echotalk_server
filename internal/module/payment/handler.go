@@ -43,6 +43,17 @@ func (h *Handler) CreateOrder(c *gin.Context) {
 	response.Success(c, res)
 }
 
+// Membership 查询当前用户会员状态（需鉴权，个人中心）。
+func (h *Handler) Membership(c *gin.Context) {
+	uid := c.GetUint(middleware.ContextUserID)
+	res, err := h.svc.MembershipStatus(uid)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, res)
+}
+
 // ConfirmOrder 模拟支付确认（需鉴权）：确认成功后开通/续期会员。
 func (h *Handler) ConfirmOrder(c *gin.Context) {
 	orderNo := c.Param("order_no")

@@ -19,6 +19,7 @@ func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, jwtManager *jwt.Manager, c
 	g.Use(middleware.Auth(jwtManager))
 	{
 		g.GET("/products", h.Products)
+		g.GET("/membership", h.Membership)
 		g.POST("/orders", h.CreateOrder)
 		g.POST("/orders/:order_no/confirm", h.ConfirmOrder)
 	}

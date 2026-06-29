@@ -21,6 +21,24 @@ func NewService(repo *Repository, ch channel.PaymentChannel) *Service {
 	return &Service{repo: repo, channel: ch}
 }
 
+// MembershipStatus 查会员状态（个人中心）。有效性实时按到期时间判定。
+func (s *Service) MembershipStatus(userID uint) (MembershipStatusResponse, error) {
+	m, err := s.repo.GetMembershipByUserID(userID)
+	if err != nil {
+		return MembershipStatusResponse{}, errcode.ErrServer
+	}
+	resp := MembershipStatusResponse{Status: MembershipStatusInactive}
+	if m != nil {
+		resp.StartAt = m.StartAt
+		resp.ExpireAt = m.ExpireAt
+		if m.Status == MembershipStatusActive && m.ExpireAt.After(time.Now()) {
+			resp.IsMember = true
+			resp.Status = MembershipStatusActive
+		}
+	}
+	return resp, nil
+}
+
 // ListProducts 取上架商品列表，供付费墙展示。
 func (s *Service) ListProducts(ctx context.Context) ([]ProductItem, error) {
 	products, err := s.repo.ListOnlineProducts()
