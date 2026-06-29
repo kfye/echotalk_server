@@ -1,5 +1,7 @@
 package payment
 
+import "time"
+
 // CreateOrderRequest 创建订单请求。
 type CreateOrderRequest struct {
 	ProductID uint `json:"product_id" binding:"required"`
@@ -12,6 +14,28 @@ type CreateOrderResponse struct {
 	Amount     int64  `json:"amount"`      // 应付金额(分)
 	Status     int8   `json:"status"`      // 订单状态 0待支付
 	PayPayload string `json:"pay_payload"` // 客户端唤起支付所需参数(mock占位)
+}
+
+// MembershipInfo 会员态（供确认响应与会员查询接口复用）。
+type MembershipInfo struct {
+	Status   int8      `json:"status"`    // 会员状态 0未生效/已过期 1有效
+	StartAt  time.Time `json:"start_at"`  // 生效时间
+	ExpireAt time.Time `json:"expire_at"` // 到期时间
+}
+
+// toMembershipInfo 把会员模型转会员态；m 为 nil 时返回未生效零态。
+func toMembershipInfo(m *Membership) MembershipInfo {
+	if m == nil {
+		return MembershipInfo{Status: MembershipStatusInactive}
+	}
+	return MembershipInfo{Status: m.Status, StartAt: m.StartAt, ExpireAt: m.ExpireAt}
+}
+
+// ConfirmResponse 支付确认响应：订单已支付 + 最新会员态。
+type ConfirmResponse struct {
+	OrderNo    string         `json:"order_no"`   // 业务订单号
+	Status     int8           `json:"status"`     // 订单状态 1已支付
+	Membership MembershipInfo `json:"membership"` // 开通/续期后的会员态
 }
 
 // ProductItem 商品/SKU 列表项（付费墙展示用，不外泄内部字段）。

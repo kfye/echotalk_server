@@ -42,3 +42,19 @@ func (h *Handler) CreateOrder(c *gin.Context) {
 	}
 	response.Success(c, res)
 }
+
+// ConfirmOrder 模拟支付确认（需鉴权）：确认成功后开通/续期会员。
+func (h *Handler) ConfirmOrder(c *gin.Context) {
+	orderNo := c.Param("order_no")
+	if orderNo == "" {
+		response.Error(c, errcode.ErrParam.WithMsg("缺少订单号"))
+		return
+	}
+	uid := c.GetUint(middleware.ContextUserID)
+	res, err := h.svc.ConfirmOrder(c.Request.Context(), uid, orderNo)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, res)
+}

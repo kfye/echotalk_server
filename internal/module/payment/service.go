@@ -82,6 +82,104 @@ func (s *Service) CreateOrder(ctx context.Context, userID uint, req CreateOrderR
 	}, nil
 }
 
+// ConfirmOrder 模拟支付确认：确认成功后置订单已支付并开通/续期会员（事务内）。
+// 已支付订单幂等返回当前会员态，不重复开会员。
+func (s *Service) ConfirmOrder(ctx context.Context, userID uint, orderNo string) (*ConfirmResponse, error) {
+	order, err := s.repo.GetOrderByNo(orderNo)
+	if err != nil {
+		return nil, errcode.ErrServer
+	}
+	// 不存在或非本人：统一按"订单不存在"，防订单号枚举。
+	if order == nil || order.UserID != userID {
+		return nil, errcode.ErrOrderNotFound
+	}
+
+	// 幂等：已支付直接返回当前会员态，不重复开会员。
+	if order.Status == OrderStatusPaid {
+		m, err := s.repo.GetMembershipByUserID(userID)
+		if err != nil {
+			return nil, errcode.ErrServer
+		}
+		return &ConfirmResponse{OrderNo: order.OrderNo, Status: order.Status, Membership: toMembershipInfo(m)}, nil
+	}
+	// 退款/关闭等非待支付态：无法支付。
+	if order.Status != OrderStatusPending {
+		return nil, errcode.ErrOrderStatus
+	}
+
+	// 渠道查单确认（事务外，不持锁做网络调用）。
+	res, err := s.channel.Query(ctx, orderNo)
+	if err != nil || !res.Success {
+		return nil, errcode.ErrPayFailed
+	}
+
+	// 事务内：行锁重查 + 再判 pending（防并发重复确认）→ 置 paid → 开/续会员。
+	var member *Membership
+	txErr := s.repo.Tx(func(tx *Repository) error {
+		o, err := tx.GetOrderByNoForUpdate(orderNo)
+		if err != nil {
+			return err
+		}
+		if o == nil {
+			return errcode.ErrOrderNotFound
+		}
+		if o.Status == OrderStatusPaid { // 并发下已被另一请求确认
+			member, err = tx.GetMembershipByUserID(userID)
+			return err
+		}
+		if o.Status != OrderStatusPending {
+			return errcode.ErrOrderStatus
+		}
+
+		now := time.Now()
+		o.Status = OrderStatusPaid
+		o.PaidAt = &now
+		o.TradeNo = res.TradeNo
+		if err := tx.UpdateOrder(o); err != nil {
+			return err
+		}
+
+		m, err := tx.GetMembershipByUserID(userID)
+		if err != nil {
+			return err
+		}
+		m = applyMembership(m, userID, o.DurationDays, MembershipSourceOrder, o.ID, now)
+		if err := tx.SaveMembership(m); err != nil {
+			return err
+		}
+		member = m
+		order = o
+		return nil
+	})
+	if txErr != nil {
+		if be, ok := txErr.(*errcode.Error); ok {
+			return nil, be
+		}
+		return nil, errcode.ErrServer
+	}
+
+	return &ConfirmResponse{OrderNo: order.OrderNo, Status: order.Status, Membership: toMembershipInfo(member)}, nil
+}
+
+// applyMembership 计算开通/续期后的会员：仍有效则到期日顺延，过期/新建则从现在重新起算。
+// m 可为 nil（首次开通）。供订单确认与手动发卡(Task E)共用。
+func applyMembership(m *Membership, userID uint, durationDays int, source int8, lastOrderID uint, now time.Time) *Membership {
+	if m == nil {
+		m = &Membership{UserID: userID, StartAt: now}
+	}
+	base := now
+	if m.ExpireAt.After(now) { // 当前仍有效 → 顺延，StartAt 不变
+		base = m.ExpireAt
+	} else { // 过期或新建 → 重新起算
+		m.StartAt = now
+	}
+	m.ExpireAt = base.AddDate(0, 0, durationDays)
+	m.Status = MembershipStatusActive
+	m.Source = source
+	m.LastOrderID = lastOrderID
+	return m
+}
+
 // genOrderNo 生成业务订单号：ODR + 时间(到秒) + 4位随机，避免同秒并发撞唯一索引。
 func genOrderNo() string {
 	return fmt.Sprintf("ODR%s%04d", time.Now().Format("20060102150405"), rand.Intn(10000))

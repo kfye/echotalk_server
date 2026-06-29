@@ -20,5 +20,6 @@ func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, jwtManager *jwt.Manager, c
 	{
 		g.GET("/products", h.Products)
 		g.POST("/orders", h.CreateOrder)
+		g.POST("/orders/:order_no/confirm", h.ConfirmOrder)
 	}
 }

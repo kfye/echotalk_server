@@ -70,6 +70,7 @@ var (
 	ErrPayFailed       = New(14002, "支付失败")
 	ErrProductNotFound = New(14003, "商品不存在")
 	ErrProductOffline  = New(14004, "商品已下架")
+	ErrOrderStatus     = New(14005, "订单状态异常，无法支付")
 )
 
 // speech 15xxx
