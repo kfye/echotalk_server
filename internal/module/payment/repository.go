@@ -37,3 +37,18 @@ func (r *Repository) ListOnlineProducts() ([]Product, error) {
 		Find(&list).Error
 	return list, err
 }
+
+// GetOrderByNo 按业务订单号查订单；不存在返回 (nil, nil)。
+func (r *Repository) GetOrderByNo(orderNo string) (*Order, error) {
+	var o Order
+	if err := r.db.Where("order_no = ?", orderNo).First(&o).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &o, nil
+}
+
+// UpdateOrder 全字段保存订单（确认支付时更新状态/交易号/支付时间）。
+func (r *Repository) UpdateOrder(o *Order) error { return r.db.Save(o).Error }

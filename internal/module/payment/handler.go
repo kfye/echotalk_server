@@ -35,10 +35,10 @@ func (h *Handler) CreateOrder(c *gin.Context) {
 		return
 	}
 	uid := c.GetUint(middleware.ContextUserID)
-	order, err := h.svc.CreateOrder(c.Request.Context(), uid, req)
+	res, err := h.svc.CreateOrder(c.Request.Context(), uid, req)
 	if err != nil {
 		response.Error(c, err)
 		return
 	}
-	response.Success(c, order)
+	response.Success(c, res)
 }

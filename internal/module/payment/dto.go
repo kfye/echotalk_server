@@ -5,6 +5,15 @@ type CreateOrderRequest struct {
 	ProductID uint `json:"product_id" binding:"required"`
 }
 
+// CreateOrderResponse 下单响应：待支付订单 + 唤起支付所需参数。
+type CreateOrderResponse struct {
+	OrderNo    string `json:"order_no"`    // 业务订单号(确认支付时回传)
+	ProductID  uint   `json:"product_id"`  // 商品ID
+	Amount     int64  `json:"amount"`      // 应付金额(分)
+	Status     int8   `json:"status"`      // 订单状态 0待支付
+	PayPayload string `json:"pay_payload"` // 客户端唤起支付所需参数(mock占位)
+}
+
 // ProductItem 商品/SKU 列表项（付费墙展示用，不外泄内部字段）。
 type ProductItem struct {
 	ID            uint   `json:"id"`
