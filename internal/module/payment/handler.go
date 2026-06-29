@@ -43,6 +43,21 @@ func (h *Handler) CreateOrder(c *gin.Context) {
 	response.Success(c, res)
 }
 
+// GrantMembership 运营手动发卡（需鉴权；角色校验留 Day6/7）。
+func (h *Handler) GrantMembership(c *gin.Context) {
+	var req GrantMembershipRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, errcode.ErrParam.WithMsg(validatorx.Message(err)))
+		return
+	}
+	res, err := h.svc.GrantMembership(c.Request.Context(), req)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, res)
+}
+
 // Membership 查询当前用户会员状态（需鉴权，个人中心）。
 func (h *Handler) Membership(c *gin.Context) {
 	uid := c.GetUint(middleware.ContextUserID)

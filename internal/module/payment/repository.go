@@ -90,3 +90,12 @@ func (r *Repository) Tx(fn func(txRepo *Repository) error) error {
 		return fn(&Repository{db: tx})
 	})
 }
+
+// UserExists 校验目标用户是否存在（手动发卡用，按表名轻查，不 import user 包）。
+func (r *Repository) UserExists(userID uint) (bool, error) {
+	var count int64
+	if err := r.db.Table("users").Where("id = ?", userID).Limit(1).Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}

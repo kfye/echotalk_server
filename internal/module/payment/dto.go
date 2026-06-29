@@ -38,6 +38,18 @@ type ConfirmResponse struct {
 	Membership MembershipInfo `json:"membership"` // 开通/续期后的会员态
 }
 
+// GrantMembershipRequest 手动发卡请求（运营给指定用户开/续会员）。
+type GrantMembershipRequest struct {
+	UserID       uint `json:"user_id" binding:"required"`             // 目标用户ID
+	DurationDays int  `json:"duration_days" binding:"required,min=1"` // 发卡时长(天)
+}
+
+// GrantResponse 手动发卡响应：发卡后会员态。
+type GrantResponse struct {
+	UserID     uint           `json:"user_id"`    // 目标用户ID
+	Membership MembershipInfo `json:"membership"` // 开通/续期后的会员态
+}
+
 // MembershipStatusResponse 会员状态查询响应（个人中心）。
 type MembershipStatusResponse struct {
 	IsMember bool      `json:"is_member"` // 当前是否有效会员(实时按到期时间)

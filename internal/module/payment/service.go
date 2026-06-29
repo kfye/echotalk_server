@@ -21,6 +21,37 @@ func NewService(repo *Repository, ch channel.PaymentChannel) *Service {
 	return &Service{repo: repo, channel: ch}
 }
 
+// GrantMembership 运营手动发卡：给指定用户开/续会员（Source=Manual，无订单）。
+// 复用 applyMembership 的开通/续期逻辑，与订单确认口径一致。
+func (s *Service) GrantMembership(ctx context.Context, req GrantMembershipRequest) (*GrantResponse, error) {
+	exists, err := s.repo.UserExists(req.UserID)
+	if err != nil {
+		return nil, errcode.ErrServer
+	}
+	if !exists {
+		return nil, errcode.ErrUserNotFound
+	}
+
+	var member *Membership
+	txErr := s.repo.Tx(func(tx *Repository) error {
+		m, err := tx.GetMembershipByUserID(req.UserID)
+		if err != nil {
+			return err
+		}
+		m = applyMembership(m, req.UserID, req.DurationDays, MembershipSourceManual, 0, time.Now())
+		if err := tx.SaveMembership(m); err != nil {
+			return err
+		}
+		member = m
+		return nil
+	})
+	if txErr != nil {
+		return nil, errcode.ErrServer
+	}
+
+	return &GrantResponse{UserID: req.UserID, Membership: toMembershipInfo(member)}, nil
+}
+
 // MembershipStatus 查会员状态（个人中心）。有效性实时按到期时间判定。
 func (s *Service) MembershipStatus(userID uint) (MembershipStatusResponse, error) {
 	m, err := s.repo.GetMembershipByUserID(userID)
