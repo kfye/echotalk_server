@@ -487,6 +487,120 @@ paths:
                                 items: { $ref: "#/components/schemas/TrainingRecordItem" }
         "401": { $ref: "#/components/responses/Err401" }
 
+  # ---------------- 会员与支付 payment ----------------
+  /payment/products:
+    get:
+      tags: [payment]
+      summary: 商品(SKU)列表
+      description: 返回全部上架商品（按 sort 倒序），供付费墙展示。需登录。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: "#/components/schemas/ProductItem" }
+        "401": { $ref: "#/components/responses/Err401" }
+
+  /payment/membership:
+    get:
+      tags: [payment]
+      summary: 当前用户会员状态
+      description: 个人中心展示。有效性实时按到期时间判定，过期即 is_member=false。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/MembershipStatusResponse" }
+        "401": { $ref: "#/components/responses/Err401" }
+
+  /payment/orders:
+    post:
+      tags: [payment]
+      summary: 下单（创建待支付订单）
+      description: >
+        按 product_id 创建待支付订单，价格与会员时长在下单时从商品快照；返回订单号与唤起支付参数(mock占位)。
+        此步不开会员（开会员在确认步）。业务失败走 200 信封：商品不存在 14003、商品已下架 14004。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateOrderRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/CreateOrderResponse" }
+        "400": { $ref: "#/components/responses/Err400" }
+        "401": { $ref: "#/components/responses/Err401" }
+
+  /payment/orders/{order_no}/confirm:
+    post:
+      tags: [payment]
+      summary: 模拟支付确认
+      description: >
+        模拟支付回调/确认：成功后订单置已支付并开通/续期会员（有效则到期日顺延，过期/新建则从现在起算）。
+        已支付订单幂等返回当前会员态，不重复开会员。
+        业务失败走 200 信封：订单不存在/非本人 14001、订单状态异常 14005、支付失败 14002。
+      parameters:
+        - { name: order_no, in: path, required: true, schema: { type: string }, description: "业务订单号" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/ConfirmResponse" }
+        "401": { $ref: "#/components/responses/Err401" }
+
+  /admin/memberships/grant:
+    post:
+      tags: [payment-admin]
+      summary: 手动发卡（运营）
+      description: >
+        给指定用户开/续会员（Source=Manual，无订单），开通/续期口径与订单确认一致。
+        当前仅校验登录，角色校验留 Day6/7。业务失败走 200 信封：用户不存在 11001。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GrantMembershipRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/GrantResponse" }
+        "400": { $ref: "#/components/responses/Err400" }
+        "401": { $ref: "#/components/responses/Err401" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -631,6 +745,68 @@ components:
         integrity_score: { type: number, format: float }
         degraded: { type: boolean }
         created_at: { type: string, format: date-time }
+
+    # ---- 会员与支付 payment（按真实出入参 DTO，非 GORM 模型）----
+    ProductItem:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string, description: "商品名称" }
+        description: { type: string }
+        price: { type: integer, format: int64, description: "现价(分)" }
+        original_price: { type: integer, format: int64, description: "原价(分)" }
+        duration_days: { type: integer, description: "会员时长(天)" }
+        type: { type: integer, description: "商品类型 1订阅 2内容包" }
+
+    CreateOrderRequest:
+      type: object
+      required: [product_id]
+      properties:
+        product_id: { type: integer, format: int64, description: "商品ID" }
+
+    CreateOrderResponse:
+      type: object
+      properties:
+        order_no: { type: string, description: "业务订单号(确认支付时回传)" }
+        product_id: { type: integer, format: int64 }
+        amount: { type: integer, format: int64, description: "应付金额(分)" }
+        status: { type: integer, description: "订单状态 0待支付" }
+        pay_payload: { type: string, description: "客户端唤起支付所需参数(mock占位)" }
+
+    MembershipInfo:
+      type: object
+      properties:
+        status: { type: integer, description: "会员状态 0未生效/已过期 1有效" }
+        start_at: { type: string, format: date-time }
+        expire_at: { type: string, format: date-time }
+
+    ConfirmResponse:
+      type: object
+      properties:
+        order_no: { type: string }
+        status: { type: integer, description: "订单状态 1已支付" }
+        membership: { $ref: "#/components/schemas/MembershipInfo" }
+
+    MembershipStatusResponse:
+      type: object
+      properties:
+        is_member: { type: boolean, description: "当前是否有效会员(实时按到期时间)" }
+        status: { type: integer, description: "会员状态 0非会员/已过期 1有效" }
+        start_at: { type: string, format: date-time, description: "无会员为零值" }
+        expire_at: { type: string, format: date-time, description: "无会员为零值，过期则为过去时间" }
+
+    GrantMembershipRequest:
+      type: object
+      required: [user_id, duration_days]
+      properties:
+        user_id: { type: integer, format: int64, description: "目标用户ID" }
+        duration_days: { type: integer, minimum: 1, description: "发卡时长(天)" }
+
+    GrantResponse:
+      type: object
+      properties:
+        user_id: { type: integer, format: int64 }
+        membership: { $ref: "#/components/schemas/MembershipInfo" }
 
   responses:
     OK:
