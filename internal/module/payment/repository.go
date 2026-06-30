@@ -2,6 +2,7 @@ package payment
 
 import (
 	"errors"
+	"time"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -105,6 +106,50 @@ func (r *Repository) ListOrders(status *int8, userID *uint, page, pageSize int) 
 		Offset((page - 1) * pageSize).Limit(pageSize).
 		Scan(&items).Error
 	return items, total, err
+}
+
+// ListMemberships 管理端分页列会员，联表带用户邮箱，按到期时间倒序。
+// status 实时按 expire_at 算（覆盖沉睡过期用户）：1=有效, 0=已过期/未生效；status 非 nil 时按实时值过滤。
+func (r *Repository) ListMemberships(status *int8, page, pageSize int) ([]AdminMembershipItem, int64, error) {
+	now := time.Now()
+	q := r.db.Table("memberships AS m").
+		Joins("LEFT JOIN users u ON u.id = m.user_id")
+	if status != nil {
+		if *status == MembershipStatusActive {
+			q = q.Where("m.status = ? AND m.expire_at > ?", MembershipStatusActive, now)
+		} else {
+			q = q.Where("NOT (m.status = ? AND m.expire_at > ?)", MembershipStatusActive, now)
+		}
+	}
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var items []AdminMembershipItem
+	err := q.
+		Select("m.id, m.user_id, u.email AS email, "+
+			"(m.status = ? AND m.expire_at > ?) AS status, "+
+			"m.start_at, m.expire_at, m.source, m.last_order_id, m.created_at",
+			MembershipStatusActive, now).
+		Order("m.expire_at DESC, m.id DESC").
+		Offset((page - 1) * pageSize).Limit(pageSize).
+		Scan(&items).Error
+	return items, total, err
+}
+
+// ExpireIfNeeded 懒更新：库存为有效但已过期时，把 status 翻成未生效（带条件单行幂等更新）。
+// 由读路径(门禁/会员查询)触发，best-effort；不满足条件则 no-op。
+func (r *Repository) ExpireIfNeeded(m *Membership) error {
+	if m == nil || m.Status != MembershipStatusActive || m.ExpireAt.After(time.Now()) {
+		return nil
+	}
+	if err := r.db.Model(&Membership{}).
+		Where("id = ? AND status = ?", m.ID, MembershipStatusActive).
+		Update("status", MembershipStatusInactive).Error; err != nil {
+		return err
+	}
+	m.Status = MembershipStatusInactive // 同步内存对象，调用方据此返回
+	return nil
 }
 
 // GetOrderByNoForUpdate 在事务内按订单号取订单并加行锁(SELECT ... FOR UPDATE)，

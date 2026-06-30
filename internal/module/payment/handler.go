@@ -134,6 +134,25 @@ func (h *Handler) AdminOrders(c *gin.Context) {
 	response.SuccessPage(c, items, total, page, pageSize)
 }
 
+// AdminMemberships 管理端会员分页列表（联表带邮箱；status 实时算），可按 status 过滤。
+func (h *Handler) AdminMemberships(c *gin.Context) {
+	page, _ := strconv.Atoi(c.Query("page"))
+	pageSize, _ := strconv.Atoi(c.Query("page_size"))
+	var status *int8
+	if s := c.Query("status"); s != "" {
+		if n, err := strconv.ParseInt(s, 10, 8); err == nil {
+			v := int8(n)
+			status = &v
+		}
+	}
+	items, total, page, pageSize, err := h.svc.AdminListMemberships(status, page, pageSize)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.SuccessPage(c, items, total, page, pageSize)
+}
+
 // CreateProduct 新增 SKU。
 func (h *Handler) CreateProduct(c *gin.Context) {
 	var in ProductInput

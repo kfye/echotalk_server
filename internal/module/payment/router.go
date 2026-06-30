@@ -28,6 +28,7 @@ func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, jwtManager *jwt.Manager, c
 	adminMember := rg.Group("/admin/memberships")
 	adminMember.Use(middleware.Auth(jwtManager))
 	{
+		adminMember.GET("", h.AdminMemberships)
 		adminMember.POST("/grant", h.GrantMembership)
 	}
 

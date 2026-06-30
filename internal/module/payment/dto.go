@@ -165,3 +165,16 @@ type AdminOrderItem struct {
 	PaidAt       *time.Time `json:"paid_at"`       // 支付时间(未支付为空)
 	CreatedAt    time.Time  `json:"created_at"`    // 创建时间
 }
+
+// AdminMembershipItem 管理端会员列表项（联表带邮箱；status 为 SQL 实时算的有效性）。
+type AdminMembershipItem struct {
+	ID          uint      `json:"id"`            // 会员记录ID
+	UserID      uint      `json:"user_id"`       // 用户ID
+	Email       string    `json:"email"`         // 用户邮箱(联表)
+	Status      int8      `json:"status"`        // 实时有效性 0已过期/未生效 1有效(SQL按expire_at算)
+	StartAt     time.Time `json:"start_at"`      // 生效时间
+	ExpireAt    time.Time `json:"expire_at"`     // 到期时间
+	Source      int8      `json:"source"`        // 开通来源 1订单 2手动发卡
+	LastOrderID uint      `json:"last_order_id"` // 最近订单ID
+	CreatedAt   time.Time `json:"created_at"`    // 创建时间
+}

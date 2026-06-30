@@ -27,5 +27,9 @@ func (c *membershipChecker) IsActiveMember(ctx context.Context, userID uint) (bo
 	if m == nil {
 		return false, nil
 	}
-	return m.Status == MembershipStatusActive && m.ExpireAt.After(time.Now()), nil
+	active := m.Status == MembershipStatusActive && m.ExpireAt.After(time.Now())
+	if !active {
+		_ = c.repo.ExpireIfNeeded(m) // 懒更新：库存有效但已过期则翻库存列，best-effort
+	}
+	return active, nil
 }

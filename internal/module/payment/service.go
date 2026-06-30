@@ -65,6 +65,8 @@ func (s *Service) MembershipStatus(userID uint) (MembershipStatusResponse, error
 		if m.Status == MembershipStatusActive && m.ExpireAt.After(time.Now()) {
 			resp.IsMember = true
 			resp.Status = MembershipStatusActive
+		} else {
+			_ = s.repo.ExpireIfNeeded(m) // 懒更新：库存有效但已过期则翻库存列，best-effort
 		}
 	}
 	return resp, nil
@@ -127,6 +129,19 @@ func (s *Service) AdminListOrders(status *int8, userID *uint, page, pageSize int
 	}
 	if items == nil {
 		items = []AdminOrderItem{}
+	}
+	return items, total, page, pageSize, nil
+}
+
+// AdminListMemberships 管理端分页列会员；status 实时按到期时间算，非 nil 时按实时值过滤。
+func (s *Service) AdminListMemberships(status *int8, page, pageSize int) ([]AdminMembershipItem, int64, int, int, error) {
+	page, pageSize = normalizePage(page, pageSize)
+	items, total, err := s.repo.ListMemberships(status, page, pageSize)
+	if err != nil {
+		return nil, 0, 0, 0, errcode.ErrServer.Wrap(err)
+	}
+	if items == nil {
+		items = []AdminMembershipItem{}
 	}
 	return items, total, page, pageSize, nil
 }
