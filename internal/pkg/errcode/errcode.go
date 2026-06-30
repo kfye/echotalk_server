@@ -10,6 +10,8 @@ package errcode
 import (
 	"fmt"
 	"net/http"
+	"runtime"
+	"strings"
 )
 
 // Error 业务错误：携带错误码、提示信息与对应 HTTP 状态。
@@ -17,9 +19,40 @@ type Error struct {
 	Code int
 	Msg  string
 	HTTP int
+
+	cause  error  // 被包裹的根因（DB/Redis/讯飞等），仅内部失败时由 Wrap 附带，不返回给客户端
+	caller string // 调用 Wrap 的位置 file:line，用于定位是哪一行 err 判断触发的内部失败
 }
 
 func (e *Error) Error() string { return fmt.Sprintf("[%d] %s", e.Code, e.Msg) }
+
+// Wrap 返回副本并附带根因与调用点（runtime.Caller(1) 取调用 Wrap 的那一行），用于内部失败定位。
+// 拷贝语义，绝不改动包级单例（如 ErrServer）。
+func (e *Error) Wrap(cause error) *Error {
+	cp := *e
+	cp.cause = cause
+	if _, file, line, ok := runtime.Caller(1); ok {
+		cp.caller = fmt.Sprintf("%s:%d", trimPath(file), line)
+	}
+	return &cp
+}
+
+// Cause 返回被包裹的根因，无则 nil（供日志中间件取根因）。
+func (e *Error) Cause() error { return e.cause }
+
+// Caller 返回 Wrap 捕获的调用点 file:line，无则空串（供日志中间件定位）。
+func (e *Error) Caller() string { return e.caller }
+
+// Unwrap 暴露根因以支持 errors.Is/As。
+func (e *Error) Unwrap() error { return e.cause }
+
+// trimPath 把绝对路径截短到 internal/ 之后，仅为日志可读性；找不到则原样返回。
+func trimPath(file string) string {
+	if i := strings.Index(file, "internal/"); i >= 0 {
+		return file[i:]
+	}
+	return file
+}
 
 // New 创建业务类错误码，默认 HTTP 200（业务拒绝）。
 func New(code int, msg string) *Error {

@@ -41,13 +41,13 @@ func (h *Handler) Evaluate(c *gin.Context) {
 	}
 	f, err := fileHeader.Open()
 	if err != nil {
-		response.Error(c, errcode.ErrServer)
+		response.Error(c, errcode.ErrServer.Wrap(err))
 		return
 	}
 	defer func() { _ = f.Close() }()
 	audio, err := io.ReadAll(f)
 	if err != nil {
-		response.Error(c, errcode.ErrServer)
+		response.Error(c, errcode.ErrServer.Wrap(err))
 		return
 	}
 

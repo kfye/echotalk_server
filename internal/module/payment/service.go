@@ -26,7 +26,7 @@ func NewService(repo *Repository, ch channel.PaymentChannel) *Service {
 func (s *Service) GrantMembership(ctx context.Context, req GrantMembershipRequest) (*GrantResponse, error) {
 	exists, err := s.repo.UserExists(req.UserID)
 	if err != nil {
-		return nil, errcode.ErrServer
+		return nil, errcode.ErrServer.Wrap(err)
 	}
 	if !exists {
 		return nil, errcode.ErrUserNotFound
@@ -46,7 +46,7 @@ func (s *Service) GrantMembership(ctx context.Context, req GrantMembershipReques
 		return nil
 	})
 	if txErr != nil {
-		return nil, errcode.ErrServer
+		return nil, errcode.ErrServer.Wrap(txErr)
 	}
 
 	return &GrantResponse{UserID: req.UserID, Membership: toMembershipInfo(member)}, nil
@@ -56,7 +56,7 @@ func (s *Service) GrantMembership(ctx context.Context, req GrantMembershipReques
 func (s *Service) MembershipStatus(userID uint) (MembershipStatusResponse, error) {
 	m, err := s.repo.GetMembershipByUserID(userID)
 	if err != nil {
-		return MembershipStatusResponse{}, errcode.ErrServer
+		return MembershipStatusResponse{}, errcode.ErrServer.Wrap(err)
 	}
 	resp := MembershipStatusResponse{Status: MembershipStatusInactive}
 	if m != nil {
@@ -74,7 +74,7 @@ func (s *Service) MembershipStatus(userID uint) (MembershipStatusResponse, error
 func (s *Service) ListProducts(ctx context.Context) ([]ProductItem, error) {
 	products, err := s.repo.ListOnlineProducts()
 	if err != nil {
-		return nil, errcode.ErrServer
+		return nil, errcode.ErrServer.Wrap(err)
 	}
 	items := make([]ProductItem, 0, len(products))
 	for i := range products {
@@ -88,7 +88,7 @@ func (s *Service) ListProducts(ctx context.Context) ([]ProductItem, error) {
 func (s *Service) CreateOrder(ctx context.Context, userID uint, req CreateOrderRequest) (*CreateOrderResponse, error) {
 	product, err := s.repo.GetProductByID(req.ProductID)
 	if err != nil {
-		return nil, errcode.ErrServer
+		return nil, errcode.ErrServer.Wrap(err)
 	}
 	if product == nil {
 		return nil, errcode.ErrProductNotFound
@@ -108,7 +108,7 @@ func (s *Service) CreateOrder(ctx context.Context, userID uint, req CreateOrderR
 		Status:       OrderStatusPending,
 	}
 	if err := s.repo.Create(order); err != nil {
-		return nil, errcode.ErrServer
+		return nil, errcode.ErrServer.Wrap(err)
 	}
 
 	// 取唤起支付参数（占位）；真实交易号在确认回调时落库，此处不置 paid。
@@ -136,7 +136,7 @@ func (s *Service) CreateOrder(ctx context.Context, userID uint, req CreateOrderR
 func (s *Service) ConfirmOrder(ctx context.Context, userID uint, orderNo string) (*ConfirmResponse, error) {
 	order, err := s.repo.GetOrderByNo(orderNo)
 	if err != nil {
-		return nil, errcode.ErrServer
+		return nil, errcode.ErrServer.Wrap(err)
 	}
 	// 不存在或非本人：统一按"订单不存在"，防订单号枚举。
 	if order == nil || order.UserID != userID {
@@ -147,7 +147,7 @@ func (s *Service) ConfirmOrder(ctx context.Context, userID uint, orderNo string)
 	if order.Status == OrderStatusPaid {
 		m, err := s.repo.GetMembershipByUserID(userID)
 		if err != nil {
-			return nil, errcode.ErrServer
+			return nil, errcode.ErrServer.Wrap(err)
 		}
 		return &ConfirmResponse{OrderNo: order.OrderNo, Status: order.Status, Membership: toMembershipInfo(m)}, nil
 	}
@@ -204,7 +204,7 @@ func (s *Service) ConfirmOrder(ctx context.Context, userID uint, orderNo string)
 		if be, ok := txErr.(*errcode.Error); ok {
 			return nil, be
 		}
-		return nil, errcode.ErrServer
+		return nil, errcode.ErrServer.Wrap(txErr)
 	}
 
 	return &ConfirmResponse{OrderNo: order.OrderNo, Status: order.Status, Membership: toMembershipInfo(member)}, nil

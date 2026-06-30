@@ -67,7 +67,7 @@ func (s *Service) Evaluate(ctx context.Context, userID uint, in EvaluateInput, a
 
 	wordsJSON, err := json.Marshal(res.Words)
 	if err != nil {
-		return nil, errcode.ErrServer
+		return nil, errcode.ErrServer.Wrap(err)
 	}
 
 	// 录音存 COS（优雅降级）：未配置或上传失败不影响评测，audio_url 留空。
@@ -87,7 +87,7 @@ func (s *Service) Evaluate(ctx context.Context, userID uint, in EvaluateInput, a
 		Degraded:       res.Degraded,
 	}
 	if err := s.repo.Create(rec); err != nil {
-		return nil, errcode.ErrServer
+		return nil, errcode.ErrServer.Wrap(err)
 	}
 
 	resp := &EvaluateResponse{
@@ -126,7 +126,7 @@ func (s *Service) History(userID uint, page, pageSize int) ([]RecordItem, int64,
 	page, pageSize = normalizePage(page, pageSize)
 	recs, total, err := s.repo.ListByUser(userID, page, pageSize)
 	if err != nil {
-		return nil, 0, 0, 0, errcode.ErrServer
+		return nil, 0, 0, 0, errcode.ErrServer.Wrap(err)
 	}
 	items := make([]RecordItem, 0, len(recs))
 	for i := range recs {

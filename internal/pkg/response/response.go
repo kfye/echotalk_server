@@ -42,15 +42,18 @@ func SuccessPage(c *gin.Context, list interface{}, total int64, page, pageSize i
 }
 
 // Fail 以业务错误码失败响应，HTTP 状态取自 e.HTTP。
+// 同时把错误挂到 gin 上下文，供 AccessLog 中间件集中出错误日志（带根因/调用点）。
 func Fail(c *gin.Context, e *errcode.Error) {
 	c.JSON(e.HTTP, Body{Code: e.Code, Msg: e.Msg, RequestID: reqID(c)})
+	_ = c.Error(e)
 }
 
 // Error 统一错误出口：*errcode.Error 按其 HTTP 状态返回；其它 error 归一为 ErrServer(500)，不向客户端暴露内部细节。
+// 归一时把原始 error 作为根因包裹，供 AccessLog 集中出错误日志定位。
 func Error(c *gin.Context, err error) {
 	if e, ok := err.(*errcode.Error); ok {
 		Fail(c, e)
 		return
 	}
-	Fail(c, errcode.ErrServer)
+	Fail(c, errcode.ErrServer.Wrap(err))
 }

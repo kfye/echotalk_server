@@ -62,13 +62,13 @@ func (s *Service) List(ctx context.Context, userID uint, q ListQuery) ([]VideoLi
 		PageSize:   pageSize,
 	})
 	if err != nil {
-		return nil, 0, 0, 0, errcode.ErrServer
+		return nil, 0, 0, 0, errcode.ErrServer.Wrap(err)
 	}
 	items := make([]VideoListItem, 0, len(videos))
 	for i := range videos {
 		lk, err := s.locked(ctx, userID, &videos[i])
 		if err != nil {
-			return nil, 0, 0, 0, errcode.ErrServer
+			return nil, 0, 0, 0, errcode.ErrServer.Wrap(err)
 		}
 		items = append(items, toListItem(&videos[i], lk))
 	}
@@ -79,14 +79,14 @@ func (s *Service) List(ctx context.Context, userID uint, q ListQuery) ([]VideoLi
 func (s *Service) Detail(ctx context.Context, userID, id uint) (*VideoDetail, error) {
 	v, err := s.repo.GetByID(id)
 	if err != nil {
-		return nil, errcode.ErrServer
+		return nil, errcode.ErrServer.Wrap(err)
 	}
 	if v == nil || v.Status != VideoStatusOnline {
 		return nil, errcode.ErrContentNotFound
 	}
 	lk, err := s.locked(ctx, userID, v)
 	if err != nil {
-		return nil, errcode.ErrServer
+		return nil, errcode.ErrServer.Wrap(err)
 	}
 	d := toDetail(v, lk)
 	return &d, nil
@@ -104,7 +104,7 @@ func (s *Service) AdminList(q ListQuery, status *int8) ([]VideoDetail, int64, in
 		PageSize: pageSize,
 	})
 	if err != nil {
-		return nil, 0, 0, 0, errcode.ErrServer
+		return nil, 0, 0, 0, errcode.ErrServer.Wrap(err)
 	}
 	items := make([]VideoDetail, 0, len(videos))
 	for i := range videos {
@@ -117,7 +117,7 @@ func (s *Service) AdminList(q ListQuery, status *int8) ([]VideoDetail, int64, in
 func (s *Service) Create(in VideoInput) (*VideoDetail, error) {
 	v := applyInput(&Video{Status: VideoStatusDraft, Difficulty: 1}, in)
 	if err := s.repo.Create(v); err != nil {
-		return nil, errcode.ErrServer
+		return nil, errcode.ErrServer.Wrap(err)
 	}
 	d := toDetail(v, false)
 	return &d, nil
@@ -127,14 +127,14 @@ func (s *Service) Create(in VideoInput) (*VideoDetail, error) {
 func (s *Service) Update(id uint, in VideoInput) (*VideoDetail, error) {
 	v, err := s.repo.GetByID(id)
 	if err != nil {
-		return nil, errcode.ErrServer
+		return nil, errcode.ErrServer.Wrap(err)
 	}
 	if v == nil {
 		return nil, errcode.ErrContentNotFound
 	}
 	v = applyInput(v, in)
 	if err := s.repo.Update(v); err != nil {
-		return nil, errcode.ErrServer
+		return nil, errcode.ErrServer.Wrap(err)
 	}
 	d := toDetail(v, false)
 	return &d, nil
@@ -144,7 +144,7 @@ func (s *Service) Update(id uint, in VideoInput) (*VideoDetail, error) {
 func (s *Service) UpdateStatus(id uint, in UpdateStatusInput) (*VideoDetail, error) {
 	v, err := s.repo.GetByID(id)
 	if err != nil {
-		return nil, errcode.ErrServer
+		return nil, errcode.ErrServer.Wrap(err)
 	}
 	if v == nil {
 		return nil, errcode.ErrContentNotFound
@@ -156,7 +156,7 @@ func (s *Service) UpdateStatus(id uint, in UpdateStatusInput) (*VideoDetail, err
 		v.IsFree = *in.IsFree
 	}
 	if err := s.repo.Update(v); err != nil {
-		return nil, errcode.ErrServer
+		return nil, errcode.ErrServer.Wrap(err)
 	}
 	d := toDetail(v, false)
 	return &d, nil
@@ -166,13 +166,13 @@ func (s *Service) UpdateStatus(id uint, in UpdateStatusInput) (*VideoDetail, err
 func (s *Service) Delete(id uint) error {
 	v, err := s.repo.GetByID(id)
 	if err != nil {
-		return errcode.ErrServer
+		return errcode.ErrServer.Wrap(err)
 	}
 	if v == nil {
 		return errcode.ErrContentNotFound
 	}
 	if err := s.repo.Delete(id); err != nil {
-		return errcode.ErrServer
+		return errcode.ErrServer.Wrap(err)
 	}
 	return nil
 }

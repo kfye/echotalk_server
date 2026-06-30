@@ -43,10 +43,10 @@ func NewService(repo *Repository, jwtManager *jwt.Manager, sender codesender.Cod
 func (s *Service) issuePair(ctx context.Context, userID uint) (jwt.Pair, error) {
 	pair, refreshJTI, err := s.jwt.GeneratePair(userID)
 	if err != nil {
-		return jwt.Pair{}, errcode.ErrServer
+		return jwt.Pair{}, errcode.ErrServer.Wrap(err)
 	}
 	if err := s.tokens.SaveRefresh(ctx, userID, refreshJTI, s.jwt.RefreshTTL()); err != nil {
-		return jwt.Pair{}, errcode.ErrServer
+		return jwt.Pair{}, errcode.ErrServer.Wrap(err)
 	}
 	return pair, nil
 }
@@ -56,10 +56,10 @@ func (s *Service) SendCode(ctx context.Context, req SendCodeRequest) error {
 	email := normalizeEmail(req.Email)
 	code, err := s.sender.Send(ctx, email)
 	if err != nil {
-		return errcode.ErrServer
+		return errcode.ErrServer.Wrap(err)
 	}
 	if err := s.store.Save(ctx, sceneRegister, email, code, codeTTL); err != nil {
-		return errcode.ErrServer
+		return errcode.ErrServer.Wrap(err)
 	}
 	return nil
 }
@@ -71,7 +71,7 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*User, err
 
 	existing, err := s.repo.FindByEmail(email)
 	if err != nil {
-		return nil, errcode.ErrServer
+		return nil, errcode.ErrServer.Wrap(err)
 	}
 	if existing != nil {
 		return nil, errcode.ErrUserExists
@@ -79,7 +79,7 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*User, err
 
 	ok, err := s.store.Consume(ctx, sceneRegister, email, req.Code)
 	if err != nil {
-		return nil, errcode.ErrServer
+		return nil, errcode.ErrServer.Wrap(err)
 	}
 	if !ok {
 		return nil, errcode.ErrCodeInvalid
@@ -87,14 +87,14 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*User, err
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, errcode.ErrServer
+		return nil, errcode.ErrServer.Wrap(err)
 	}
 	u := &User{Email: email, Password: string(hash), Nickname: req.Nickname}
 	if err := s.repo.Create(u); err != nil {
 		if errors.Is(err, ErrDuplicateEmail) { // 并发竞态：唯一键冲突兜底
 			return nil, errcode.ErrUserExists
 		}
-		return nil, errcode.ErrServer
+		return nil, errcode.ErrServer.Wrap(err)
 	}
 	return u, nil
 }
@@ -107,7 +107,7 @@ var dummyHash, _ = bcrypt.GenerateFromPassword([]byte("dummy-password"), bcrypt.
 func (s *Service) Login(ctx context.Context, req LoginRequest) (jwt.Pair, error) {
 	u, err := s.repo.FindByEmail(normalizeEmail(req.Email))
 	if err != nil {
-		return jwt.Pair{}, errcode.ErrServer
+		return jwt.Pair{}, errcode.ErrServer.Wrap(err)
 	}
 	if u == nil {
 		_ = bcrypt.CompareHashAndPassword(dummyHash, []byte(req.Password)) // 等价耗时，结果丢弃
@@ -127,7 +127,7 @@ func (s *Service) Refresh(ctx context.Context, req RefreshRequest) (jwt.Pair, er
 	}
 	ok, err := s.tokens.IsRefreshValid(ctx, claims.UserID, claims.ID)
 	if err != nil {
-		return jwt.Pair{}, errcode.ErrServer
+		return jwt.Pair{}, errcode.ErrServer.Wrap(err)
 	}
 	if !ok { // 已登出或已被轮换
 		return jwt.Pair{}, errcode.ErrTokenInvalid
@@ -143,7 +143,7 @@ func (s *Service) Refresh(ctx context.Context, req RefreshRequest) (jwt.Pair, er
 // Logout 撤销该用户全部 refresh 会话（多端下线）。
 func (s *Service) Logout(ctx context.Context, userID uint) error {
 	if err := s.tokens.RevokeAllRefresh(ctx, userID); err != nil {
-		return errcode.ErrServer
+		return errcode.ErrServer.Wrap(err)
 	}
 	return nil
 }
@@ -152,7 +152,7 @@ func (s *Service) Logout(ctx context.Context, userID uint) error {
 func (s *Service) Profile(userID uint) (*User, error) {
 	u, err := s.repo.FindByID(userID)
 	if err != nil {
-		return nil, errcode.ErrServer
+		return nil, errcode.ErrServer.Wrap(err)
 	}
 	if u == nil {
 		return nil, errcode.ErrUserNotFound
