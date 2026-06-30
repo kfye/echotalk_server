@@ -81,3 +81,87 @@ func toProductItem(p *Product) ProductItem {
 		Type:          p.Type,
 	}
 }
+
+// AdminProductItem 管理端商品项（全字段，含 App 端隐藏的 status/sort/时间）。
+type AdminProductItem struct {
+	ID            uint      `json:"id"`
+	Name          string    `json:"name"`           // 商品名称
+	Description   string    `json:"description"`    // 描述
+	Price         int64     `json:"price"`          // 现价(分)
+	OriginalPrice int64     `json:"original_price"` // 原价(分)
+	DurationDays  int       `json:"duration_days"`  // 会员时长(天)
+	Type          int8      `json:"type"`           // 商品类型 1订阅/2内容包
+	Status        int8      `json:"status"`         // 上下架状态 0下架/1上架
+	Sort          int       `json:"sort"`           // 排序权重
+	CreatedAt     time.Time `json:"created_at"`     // 创建时间
+	UpdatedAt     time.Time `json:"updated_at"`     // 更新时间
+}
+
+// toAdminProductItem 把商品模型转管理端项。
+func toAdminProductItem(p *Product) AdminProductItem {
+	return AdminProductItem{
+		ID:            p.ID,
+		Name:          p.Name,
+		Description:   p.Description,
+		Price:         p.Price,
+		OriginalPrice: p.OriginalPrice,
+		DurationDays:  p.DurationDays,
+		Type:          p.Type,
+		Status:        p.Status,
+		Sort:          p.Sort,
+		CreatedAt:     p.CreatedAt,
+		UpdatedAt:     p.UpdatedAt,
+	}
+}
+
+// ProductInput 管理端商品新增/编辑入参。
+type ProductInput struct {
+	Name          string `json:"name" binding:"required,max=64"`       // 商品名称(必填)
+	Description   string `json:"description" binding:"max=255"`        // 描述
+	Price         int64  `json:"price" binding:"min=0"`                // 现价(分)
+	OriginalPrice int64  `json:"original_price" binding:"min=0"`       // 原价(分)
+	DurationDays  int    `json:"duration_days" binding:"min=0"`        // 会员时长(天，订阅型应>0)
+	Type          int8   `json:"type" binding:"omitempty,oneof=1 2"`   // 商品类型 1订阅/2内容包(0时默认1)
+	Status        *int8  `json:"status" binding:"omitempty,oneof=0 1"` // 上下架 0下架/1上架(不传默认下架)
+	Sort          int    `json:"sort"`                                 // 排序权重
+}
+
+// ProductStatusInput 管理端上下架入参。
+type ProductStatusInput struct {
+	Status *int8 `json:"status" binding:"required,oneof=0 1"` // 目标状态 0下架/1上架
+}
+
+// applyProductInput 把入参写入商品模型；Type 为 0 时补默认订阅，Status 仅在传入时覆盖。
+func applyProductInput(p *Product, in ProductInput) *Product {
+	p.Name = in.Name
+	p.Description = in.Description
+	p.Price = in.Price
+	p.OriginalPrice = in.OriginalPrice
+	p.DurationDays = in.DurationDays
+	if in.Type != 0 {
+		p.Type = in.Type
+	} else if p.Type == 0 {
+		p.Type = ProductTypeSubscription
+	}
+	if in.Status != nil {
+		p.Status = *in.Status
+	}
+	p.Sort = in.Sort
+	return p
+}
+
+// AdminOrderItem 管理端订单列表项（联表带用户邮箱与商品名，便于运营查看）。
+type AdminOrderItem struct {
+	ID           uint       `json:"id"`
+	OrderNo      string     `json:"order_no"`      // 业务订单号
+	UserID       uint       `json:"user_id"`       // 用户ID
+	Email        string     `json:"email"`         // 用户邮箱(联表)
+	ProductID    uint       `json:"product_id"`    // 商品ID
+	ProductName  string     `json:"product_name"`  // 商品名(联表，软删商品仍回显)
+	Amount       int64      `json:"amount"`        // 金额(分)
+	DurationDays int        `json:"duration_days"` // 会员时长(天)
+	Channel      string     `json:"channel"`       // 支付渠道 mock/wechat/alipay
+	Status       int8       `json:"status"`        // 订单状态 0待支付 1已支付 2已退款 3已关闭
+	PaidAt       *time.Time `json:"paid_at"`       // 支付时间(未支付为空)
+	CreatedAt    time.Time  `json:"created_at"`    // 创建时间
+}

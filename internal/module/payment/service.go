@@ -83,6 +83,113 @@ func (s *Service) ListProducts(ctx context.Context) ([]ProductItem, error) {
 	return items, nil
 }
 
+// 管理端分页默认值。
+const (
+	defaultPage     = 1
+	defaultPageSize = 20
+	maxPageSize     = 100
+)
+
+// normalizePage 规范化分页参数（默认 1/20，上限 100）。
+func normalizePage(page, pageSize int) (int, int) {
+	if page <= 0 {
+		page = defaultPage
+	}
+	if pageSize <= 0 {
+		pageSize = defaultPageSize
+	}
+	if pageSize > maxPageSize {
+		pageSize = maxPageSize
+	}
+	return page, pageSize
+}
+
+// AdminListProducts 管理端分页列商品（含下架）；status 非 nil 时按状态过滤。
+func (s *Service) AdminListProducts(status *int8, page, pageSize int) ([]AdminProductItem, int64, int, int, error) {
+	page, pageSize = normalizePage(page, pageSize)
+	products, total, err := s.repo.ListProducts(status, page, pageSize)
+	if err != nil {
+		return nil, 0, 0, 0, errcode.ErrServer.Wrap(err)
+	}
+	items := make([]AdminProductItem, 0, len(products))
+	for i := range products {
+		items = append(items, toAdminProductItem(&products[i]))
+	}
+	return items, total, page, pageSize, nil
+}
+
+// AdminListOrders 管理端分页列订单；status / userID 非 nil 时分别过滤。
+func (s *Service) AdminListOrders(status *int8, userID *uint, page, pageSize int) ([]AdminOrderItem, int64, int, int, error) {
+	page, pageSize = normalizePage(page, pageSize)
+	items, total, err := s.repo.ListOrders(status, userID, page, pageSize)
+	if err != nil {
+		return nil, 0, 0, 0, errcode.ErrServer.Wrap(err)
+	}
+	if items == nil {
+		items = []AdminOrderItem{}
+	}
+	return items, total, page, pageSize, nil
+}
+
+// CreateProduct 新建 SKU；不传 status 默认下架（运营确认后再上架）。
+func (s *Service) CreateProduct(in ProductInput) (*AdminProductItem, error) {
+	p := applyProductInput(&Product{Status: ProductStatusOffline}, in)
+	if err := s.repo.CreateProduct(p); err != nil {
+		return nil, errcode.ErrServer.Wrap(err)
+	}
+	item := toAdminProductItem(p)
+	return &item, nil
+}
+
+// UpdateProduct 编辑 SKU。
+func (s *Service) UpdateProduct(id uint, in ProductInput) (*AdminProductItem, error) {
+	p, err := s.repo.GetProductByID(id)
+	if err != nil {
+		return nil, errcode.ErrServer.Wrap(err)
+	}
+	if p == nil {
+		return nil, errcode.ErrProductNotFound
+	}
+	p = applyProductInput(p, in)
+	if err := s.repo.UpdateProduct(p); err != nil {
+		return nil, errcode.ErrServer.Wrap(err)
+	}
+	item := toAdminProductItem(p)
+	return &item, nil
+}
+
+// UpdateProductStatus 上下架 SKU。
+func (s *Service) UpdateProductStatus(id uint, status int8) (*AdminProductItem, error) {
+	p, err := s.repo.GetProductByID(id)
+	if err != nil {
+		return nil, errcode.ErrServer.Wrap(err)
+	}
+	if p == nil {
+		return nil, errcode.ErrProductNotFound
+	}
+	p.Status = status
+	if err := s.repo.UpdateProduct(p); err != nil {
+		return nil, errcode.ErrServer.Wrap(err)
+	}
+	item := toAdminProductItem(p)
+	return &item, nil
+}
+
+// DeleteProduct 软删 SKU（物理保留以供订单回显）。
+func (s *Service) DeleteProduct(id uint) error {
+	p, err := s.repo.GetProductByID(id)
+	if err != nil {
+		return errcode.ErrServer.Wrap(err)
+	}
+	if p == nil {
+		return errcode.ErrProductNotFound
+	}
+	if err := s.repo.DeleteProduct(id); err != nil {
+		return errcode.ErrServer.Wrap(err)
+	}
+	return nil
+}
+
 // CreateOrder 校验商品后创建待支付订单，并向当前渠道取唤起支付所需参数。
 // 仅落库 pending，不开会员（开会员在确认支付步）。
 func (s *Service) CreateOrder(ctx context.Context, userID uint, req CreateOrderRequest) (*CreateOrderResponse, error) {

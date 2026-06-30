@@ -30,4 +30,22 @@ func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, jwtManager *jwt.Manager, c
 	{
 		adminMember.POST("/grant", h.GrantMembership)
 	}
+
+	// 管理端：SKU 管理（镜像 content /admin/videos，先只校验登录）
+	adminProduct := rg.Group("/admin/products")
+	adminProduct.Use(middleware.Auth(jwtManager))
+	{
+		adminProduct.GET("", h.AdminProducts)
+		adminProduct.POST("", h.CreateProduct)
+		adminProduct.PUT("/:id", h.UpdateProduct)
+		adminProduct.PATCH("/:id/status", h.UpdateProductStatus)
+		adminProduct.DELETE("/:id", h.DeleteProduct)
+	}
+
+	// 管理端：订单列表（只读，联表带邮箱/商品名）
+	adminOrder := rg.Group("/admin/orders")
+	adminOrder.Use(middleware.Auth(jwtManager))
+	{
+		adminOrder.GET("", h.AdminOrders)
+	}
 }

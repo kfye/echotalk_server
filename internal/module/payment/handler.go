@@ -1,6 +1,8 @@
 package payment
 
 import (
+	"strconv"
+
 	"github.com/gin-gonic/gin"
 
 	"github.com/echotalk/echotalk_server/internal/middleware"
@@ -83,4 +85,126 @@ func (h *Handler) ConfirmOrder(c *gin.Context) {
 		return
 	}
 	response.Success(c, res)
+}
+
+// --- 管理端：SKU 管理（需鉴权；角色校验留后续）---
+
+// AdminProducts 管理端商品分页列表（含下架），可按 status 过滤。
+func (h *Handler) AdminProducts(c *gin.Context) {
+	page, _ := strconv.Atoi(c.Query("page"))
+	pageSize, _ := strconv.Atoi(c.Query("page_size"))
+	var status *int8
+	if s := c.Query("status"); s != "" {
+		if n, err := strconv.ParseInt(s, 10, 8); err == nil {
+			v := int8(n)
+			status = &v
+		}
+	}
+	items, total, page, pageSize, err := h.svc.AdminListProducts(status, page, pageSize)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.SuccessPage(c, items, total, page, pageSize)
+}
+
+// AdminOrders 管理端订单分页列表（联表带邮箱/商品名），可按 status、user_id 过滤。
+func (h *Handler) AdminOrders(c *gin.Context) {
+	page, _ := strconv.Atoi(c.Query("page"))
+	pageSize, _ := strconv.Atoi(c.Query("page_size"))
+	var status *int8
+	if s := c.Query("status"); s != "" {
+		if n, err := strconv.ParseInt(s, 10, 8); err == nil {
+			v := int8(n)
+			status = &v
+		}
+	}
+	var userID *uint
+	if u := c.Query("user_id"); u != "" {
+		if n, err := strconv.ParseUint(u, 10, 64); err == nil {
+			v := uint(n)
+			userID = &v
+		}
+	}
+	items, total, page, pageSize, err := h.svc.AdminListOrders(status, userID, page, pageSize)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.SuccessPage(c, items, total, page, pageSize)
+}
+
+// CreateProduct 新增 SKU。
+func (h *Handler) CreateProduct(c *gin.Context) {
+	var in ProductInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		response.Error(c, errcode.ErrParam.WithMsg(validatorx.Message(err)))
+		return
+	}
+	item, err := h.svc.CreateProduct(in)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, item)
+}
+
+// UpdateProduct 编辑 SKU。
+func (h *Handler) UpdateProduct(c *gin.Context) {
+	id, err := parseID(c)
+	if err != nil {
+		response.Error(c, errcode.ErrParam)
+		return
+	}
+	var in ProductInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		response.Error(c, errcode.ErrParam.WithMsg(validatorx.Message(err)))
+		return
+	}
+	item, err := h.svc.UpdateProduct(id, in)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, item)
+}
+
+// UpdateProductStatus 上下架 SKU。
+func (h *Handler) UpdateProductStatus(c *gin.Context) {
+	id, err := parseID(c)
+	if err != nil {
+		response.Error(c, errcode.ErrParam)
+		return
+	}
+	var in ProductStatusInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		response.Error(c, errcode.ErrParam.WithMsg(validatorx.Message(err)))
+		return
+	}
+	item, err := h.svc.UpdateProductStatus(id, *in.Status)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, item)
+}
+
+// DeleteProduct 软删 SKU。
+func (h *Handler) DeleteProduct(c *gin.Context) {
+	id, err := parseID(c)
+	if err != nil {
+		response.Error(c, errcode.ErrParam)
+		return
+	}
+	if err := h.svc.DeleteProduct(id); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
+// parseID 从路径取 :id 并转 uint。
+func parseID(c *gin.Context) (uint, error) {
+	n, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	return uint(n), err
 }

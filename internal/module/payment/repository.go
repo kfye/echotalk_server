@@ -39,6 +39,32 @@ func (r *Repository) ListOnlineProducts() ([]Product, error) {
 	return list, err
 }
 
+// CreateProduct 新建商品（管理端）。
+func (r *Repository) CreateProduct(p *Product) error { return r.db.Create(p).Error }
+
+// ListProducts 管理端分页列商品（含下架，软删自动排除）；status 非 nil 时按状态过滤。
+func (r *Repository) ListProducts(status *int8, page, pageSize int) ([]Product, int64, error) {
+	q := r.db.Model(&Product{})
+	if status != nil {
+		q = q.Where("status = ?", *status)
+	}
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []Product
+	err := q.Order("sort DESC, id DESC").
+		Offset((page - 1) * pageSize).Limit(pageSize).
+		Find(&list).Error
+	return list, total, err
+}
+
+// UpdateProduct 全字段保存商品（管理端编辑/改状态）。
+func (r *Repository) UpdateProduct(p *Product) error { return r.db.Save(p).Error }
+
+// DeleteProduct 软删商品（Product 带 DeletedAt，物理保留以供订单回显）。
+func (r *Repository) DeleteProduct(id uint) error { return r.db.Delete(&Product{}, id).Error }
+
 // GetOrderByNo 按业务订单号查订单；不存在返回 (nil, nil)。
 func (r *Repository) GetOrderByNo(orderNo string) (*Order, error) {
 	var o Order
@@ -53,6 +79,33 @@ func (r *Repository) GetOrderByNo(orderNo string) (*Order, error) {
 
 // UpdateOrder 全字段保存订单（确认支付时更新状态/交易号/支付时间）。
 func (r *Repository) UpdateOrder(o *Order) error { return r.db.Save(o).Error }
+
+// ListOrders 管理端分页列订单，联表带用户邮箱与商品名，按创建时间倒序。
+// status / userID 非 nil 时分别过滤。products 用原始 JOIN（软删商品仍回显商品名）。
+func (r *Repository) ListOrders(status *int8, userID *uint, page, pageSize int) ([]AdminOrderItem, int64, error) {
+	q := r.db.Table("orders AS o").
+		Joins("LEFT JOIN users u ON u.id = o.user_id").
+		Joins("LEFT JOIN products p ON p.id = o.product_id")
+	if status != nil {
+		q = q.Where("o.status = ?", *status)
+	}
+	if userID != nil {
+		q = q.Where("o.user_id = ?", *userID)
+	}
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var items []AdminOrderItem
+	err := q.
+		Select("o.id, o.order_no, o.user_id, u.email AS email, " +
+			"o.product_id, p.name AS product_name, o.amount, o.duration_days, " +
+			"o.channel, o.status, o.paid_at, o.created_at").
+		Order("o.created_at DESC").
+		Offset((page - 1) * pageSize).Limit(pageSize).
+		Scan(&items).Error
+	return items, total, err
+}
 
 // GetOrderByNoForUpdate 在事务内按订单号取订单并加行锁(SELECT ... FOR UPDATE)，
 // 保证「判 pending + 置 paid」原子，避免并发重复确认。不存在返回 (nil, nil)。

@@ -1,6 +1,10 @@
 package payment
 
-import "time"
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
 
 // 商品类型。
 const (
@@ -27,6 +31,8 @@ type Product struct {
 	Sort          int       `gorm:"default:0" json:"sort"`         // 排序权重
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
+
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"` // 软删除（运营删 SKU 不物理消失，保订单回显引用）
 }
 
 // TableName 指定表名。
