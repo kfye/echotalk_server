@@ -99,7 +99,7 @@ func (r *Repository) ListOrders(status *int8, userID *uint, page, pageSize int) 
 	}
 	var items []AdminOrderItem
 	err := q.
-		Select("o.id, o.order_no, o.user_id, u.email AS email, " +
+		Select("o.id, o.order_no, o.user_id, u.phone AS phone, " +
 			"o.product_id, p.name AS product_name, o.amount, o.duration_days, " +
 			"o.channel, o.status, o.paid_at, o.created_at").
 		Order("o.created_at DESC").
@@ -127,7 +127,7 @@ func (r *Repository) ListMemberships(status *int8, page, pageSize int) ([]AdminM
 	}
 	var items []AdminMembershipItem
 	err := q.
-		Select("m.id, m.user_id, u.email AS email, "+
+		Select("m.id, m.user_id, u.phone AS phone, "+
 			"(m.status = ? AND m.expire_at > ?) AS status, "+
 			"m.start_at, m.expire_at, m.source, m.last_order_id, m.created_at",
 			MembershipStatusActive, now).

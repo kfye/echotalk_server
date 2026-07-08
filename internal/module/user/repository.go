@@ -7,8 +7,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// ErrDuplicateEmail 邮箱唯一键冲突（并发注册竞态兜底）。
-var ErrDuplicateEmail = errors.New("duplicate email")
+// ErrDuplicatePhone 手机号唯一键冲突（并发注册竞态兜底）。
+var ErrDuplicatePhone = errors.New("duplicate phone")
 
 // Repository 用户数据访问。
 type Repository struct {
@@ -20,20 +20,20 @@ func NewRepository(db *gorm.DB) *Repository {
 	return &Repository{db: db}
 }
 
-// Create 新建用户。命中 email 唯一键冲突时返回 ErrDuplicateEmail。
+// Create 新建用户。命中手机号唯一键冲突时返回 ErrDuplicatePhone。
 func (r *Repository) Create(u *User) error {
 	err := r.db.Create(u).Error
 	var myErr *mysql.MySQLError
 	if errors.As(err, &myErr) && myErr.Number == 1062 {
-		return ErrDuplicateEmail
+		return ErrDuplicatePhone
 	}
 	return err
 }
 
-// FindByEmail 按邮箱查询；不存在返回 (nil, nil)。
-func (r *Repository) FindByEmail(email string) (*User, error) {
+// FindByPhone 按手机号查询；不存在返回 (nil, nil)。
+func (r *Repository) FindByPhone(phone string) (*User, error) {
 	var u User
-	err := r.db.Where("email = ?", email).First(&u).Error
+	err := r.db.Where("phone = ?", phone).First(&u).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}

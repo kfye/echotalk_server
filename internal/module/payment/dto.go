@@ -150,12 +150,12 @@ func applyProductInput(p *Product, in ProductInput) *Product {
 	return p
 }
 
-// AdminOrderItem 管理端订单列表项（联表带用户邮箱与商品名，便于运营查看）。
+// AdminOrderItem 管理端订单列表项（联表带用户手机号与商品名，便于运营查看）。
 type AdminOrderItem struct {
 	ID           uint       `json:"id"`
 	OrderNo      string     `json:"order_no"`      // 业务订单号
 	UserID       uint       `json:"user_id"`       // 用户ID
-	Email        string     `json:"email"`         // 用户邮箱(联表)
+	Phone        string     `json:"phone"`         // 用户手机号(联表)
 	ProductID    uint       `json:"product_id"`    // 商品ID
 	ProductName  string     `json:"product_name"`  // 商品名(联表，软删商品仍回显)
 	Amount       int64      `json:"amount"`        // 金额(分)
@@ -166,11 +166,11 @@ type AdminOrderItem struct {
 	CreatedAt    time.Time  `json:"created_at"`    // 创建时间
 }
 
-// AdminMembershipItem 管理端会员列表项（联表带邮箱；status 为 SQL 实时算的有效性）。
+// AdminMembershipItem 管理端会员列表项（联表带手机号；status 为 SQL 实时算的有效性）。
 type AdminMembershipItem struct {
 	ID          uint      `json:"id"`            // 会员记录ID
 	UserID      uint      `json:"user_id"`       // 用户ID
-	Email       string    `json:"email"`         // 用户邮箱(联表)
+	Phone       string    `json:"phone"`         // 用户手机号(联表)
 	Status      int8      `json:"status"`        // 实时有效性 0已过期/未生效 1有效(SQL按expire_at算)
 	StartAt     time.Time `json:"start_at"`      // 生效时间
 	ExpireAt    time.Time `json:"expire_at"`     // 到期时间

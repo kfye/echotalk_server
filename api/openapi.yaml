@@ -111,9 +111,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: [email, password, code]
+              required: [phone, password, code]
               properties:
-                email: { type: string, format: email, example: "dev@echotalk.com" }
+                phone: { type: string, description: "中国大陆手机号", example: "13800138000" }
                 password: { type: string, minLength: 6, maxLength: 32, example: "secret123" }
                 nickname: { type: string, maxLength: 64, example: "dev" }
                 code: { type: string, description: "验证码（内测固定码 123456）", example: "123456" }
@@ -141,9 +141,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: [email, password]
+              required: [phone, password]
               properties:
-                email: { type: string, format: email }
+                phone: { type: string, description: "中国大陆手机号", example: "13800138000" }
                 password: { type: string }
       responses:
         "200":
@@ -205,9 +205,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: [email]
+              required: [phone]
               properties:
-                email: { type: string, format: email }
+                phone: { type: string, description: "中国大陆手机号", example: "13800138000" }
       responses:
         "200": { $ref: "#/components/responses/OK" }
         "400": { $ref: "#/components/responses/Err400" }
@@ -808,7 +808,8 @@ components:
       type: object
       properties:
         id: { type: integer, format: int64, example: 1 }
-        email: { type: string, format: email }
+        phone: { type: string, description: "手机号(注册/登录 identifier)", example: "13800138000" }
+        email: { type: string, description: "邮箱(保留备用，可空)" }
         nickname: { type: string }
         status: { type: integer, description: "1正常 0禁用" }
         created_at: { type: string, format: date-time }
@@ -818,7 +819,6 @@ components:
         - $ref: "#/components/schemas/User"
         - type: object
           properties:
-            phone: { type: string }
             avatar: { type: string }
 
     VideoListItem:
@@ -950,7 +950,7 @@ components:
         id: { type: integer, format: int64 }
         order_no: { type: string, description: "业务订单号" }
         user_id: { type: integer, format: int64 }
-        email: { type: string, description: "用户邮箱(联表)" }
+        phone: { type: string, description: "用户手机号(联表)" }
         product_id: { type: integer, format: int64 }
         product_name: { type: string, description: "商品名(联表，软删商品仍回显)" }
         amount: { type: integer, format: int64, description: "金额(分)" }
@@ -965,7 +965,7 @@ components:
       properties:
         id: { type: integer, format: int64 }
         user_id: { type: integer, format: int64 }
-        email: { type: string, description: "用户邮箱(联表)" }
+        phone: { type: string, description: "用户手机号(联表)" }
         status: { type: integer, description: "实时有效性 0已过期/未生效 1有效(按expire_at算)" }
         start_at: { type: string, format: date-time }
         expire_at: { type: string, format: date-time }
@@ -1053,7 +1053,7 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Envelope" }
-          example: { code: 10400, msg: "email 必须是有效邮箱地址", request_id: "a1b2c3d4" }
+          example: { code: 10400, msg: "手机号格式不正确", request_id: "a1b2c3d4" }
     Err401:
       description: 未授权/登录失效
       content:

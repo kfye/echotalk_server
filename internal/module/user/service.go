@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"errors"
+	"regexp"
 	"strings"
 	"time"
 
@@ -20,9 +21,12 @@ const (
 	codeTTL       = 5 * time.Minute
 )
 
-// normalizeEmail 邮箱规范化：去空格 + 转小写，保证查重/验证码 key/登录一致。
-func normalizeEmail(email string) string {
-	return strings.ToLower(strings.TrimSpace(email))
+// phoneRe 中国大陆手机号：1 开头、第二位 3-9、共 11 位。
+var phoneRe = regexp.MustCompile(`^1[3-9]\d{9}$`)
+
+// normalizePhone 手机号规范化：去首尾空格（手机号无大小写），保证查重/验证码 key/登录一致。
+func normalizePhone(phone string) string {
+	return strings.TrimSpace(phone)
 }
 
 // Service 用户业务逻辑。
@@ -53,23 +57,29 @@ func (s *Service) issuePair(ctx context.Context, userID uint) (jwt.Pair, error) 
 
 // SendCode 生成并送达验证码，落 Redis（带 TTL）。
 func (s *Service) SendCode(ctx context.Context, req SendCodeRequest) error {
-	email := normalizeEmail(req.Email)
-	code, err := s.sender.Send(ctx, email)
+	phone := normalizePhone(req.Phone)
+	if !phoneRe.MatchString(phone) {
+		return errcode.ErrParam.WithMsg("手机号格式不正确")
+	}
+	code, err := s.sender.Send(ctx, phone)
 	if err != nil {
 		return errcode.ErrServer.Wrap(err)
 	}
-	if err := s.store.Save(ctx, sceneRegister, email, code, codeTTL); err != nil {
+	if err := s.store.Save(ctx, sceneRegister, phone, code, codeTTL); err != nil {
 		return errcode.ErrServer.Wrap(err)
 	}
 	return nil
 }
 
 // Register 注册新用户。
-// 顺序：规范化邮箱 → 查重(前置，不白烧验证码) → 校验验证码(一次性消费) → bcrypt → 写库。
+// 顺序：规范化手机号 → 格式校验 → 查重(前置，不白烧验证码) → 校验验证码(一次性消费) → bcrypt → 写库。
 func (s *Service) Register(ctx context.Context, req RegisterRequest) (*User, error) {
-	email := normalizeEmail(req.Email)
+	phone := normalizePhone(req.Phone)
+	if !phoneRe.MatchString(phone) {
+		return nil, errcode.ErrParam.WithMsg("手机号格式不正确")
+	}
 
-	existing, err := s.repo.FindByEmail(email)
+	existing, err := s.repo.FindByPhone(phone)
 	if err != nil {
 		return nil, errcode.ErrServer.Wrap(err)
 	}
@@ -77,7 +87,7 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*User, err
 		return nil, errcode.ErrUserExists
 	}
 
-	ok, err := s.store.Consume(ctx, sceneRegister, email, req.Code)
+	ok, err := s.store.Consume(ctx, sceneRegister, phone, req.Code)
 	if err != nil {
 		return nil, errcode.ErrServer.Wrap(err)
 	}
@@ -89,9 +99,9 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*User, err
 	if err != nil {
 		return nil, errcode.ErrServer.Wrap(err)
 	}
-	u := &User{Email: email, Password: string(hash), Nickname: req.Nickname}
+	u := &User{Phone: phone, Password: string(hash), Nickname: req.Nickname}
 	if err := s.repo.Create(u); err != nil {
-		if errors.Is(err, ErrDuplicateEmail) { // 并发竞态：唯一键冲突兜底
+		if errors.Is(err, ErrDuplicatePhone) { // 并发竞态：唯一键冲突兜底
 			return nil, errcode.ErrUserExists
 		}
 		return nil, errcode.ErrServer.Wrap(err)
@@ -105,7 +115,7 @@ var dummyHash, _ = bcrypt.GenerateFromPassword([]byte("dummy-password"), bcrypt.
 // Login 校验密码并签发令牌对。
 // 防用户枚举：账号不存在与密码错误统一返回 ErrInvalidCredentials，且耗时一致。
 func (s *Service) Login(ctx context.Context, req LoginRequest) (jwt.Pair, error) {
-	u, err := s.repo.FindByEmail(normalizeEmail(req.Email))
+	u, err := s.repo.FindByPhone(normalizePhone(req.Phone))
 	if err != nil {
 		return jwt.Pair{}, errcode.ErrServer.Wrap(err)
 	}
