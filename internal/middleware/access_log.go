@@ -25,13 +25,18 @@ func AccessLog(logger *zap.Logger) gin.HandlerFunc {
 			zap.Duration("latency", time.Since(start)),
 		)
 
-		// 集中出错误日志：仅对携带根因（或 5xx）的内部失败记，业务拒绝不刷屏。
+		// 集中出错误日志：仅对携带根因（或 5xx）的失败记，裸业务/参数码不刷屏。
+		// 按严重度分级：5xx 内部失败 → Error；带根因的 4xx(如鉴权 401/403) → Warn。
 		for _, ge := range c.Errors {
 			e, ok := ge.Err.(*errcode.Error)
 			if !ok || (e.Cause() == nil && e.HTTP < 500) {
 				continue
 			}
-			logger.Error("handler error",
+			logFn := logger.Warn
+			if e.HTTP >= 500 {
+				logFn = logger.Error
+			}
+			logFn("handler error",
 				zap.String("request_id", reqID),
 				zap.String("method", c.Request.Method),
 				zap.String("path", c.Request.URL.Path),

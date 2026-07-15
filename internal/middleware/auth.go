@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -19,13 +20,18 @@ func Auth(jwtManager *jwt.Manager) gin.HandlerFunc {
 		header := c.GetHeader("Authorization")
 		token := strings.TrimPrefix(header, "Bearer ")
 		if token == "" || token == header {
-			response.Fail(c, errcode.ErrUnauthorized)
+			response.Fail(c, errcode.ErrUnauthorized.Wrap(errors.New("缺少 Bearer token")))
 			c.Abort()
 			return
 		}
 		claims, err := jwtManager.Parse(token)
-		if err != nil || claims.Type != jwt.AccessToken {
-			response.Fail(c, errcode.ErrUnauthorized)
+		if err != nil {
+			response.Fail(c, errcode.ErrUnauthorized.Wrap(err)) // jwt 解析失败(过期/无效/格式错)
+			c.Abort()
+			return
+		}
+		if claims.Type != jwt.AccessToken {
+			response.Fail(c, errcode.ErrUnauthorized.Wrap(errors.New("非 access 令牌")))
 			c.Abort()
 			return
 		}
