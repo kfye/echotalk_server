@@ -4,6 +4,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/echotalk/echotalk_server/internal/module/content"
+	"github.com/echotalk/echotalk_server/internal/module/course"
 	"github.com/echotalk/echotalk_server/internal/module/payment"
 	"github.com/echotalk/echotalk_server/internal/module/training"
 	"github.com/echotalk/echotalk_server/internal/module/user"
@@ -19,5 +20,11 @@ func AutoMigrate(db *gorm.DB) error {
 		&payment.Product{},         // products 商品/SKU
 		&payment.Order{},           // orders 订单
 		&payment.Membership{},      // memberships 会员
+		&course.CoursePlan{},       // course_plans 训练营
+		&course.DailyLesson{},      // daily_lessons 每日课
+		&course.LessonWord{},       // lesson_words 词卡
+		&course.LessonPhrase{},     // lesson_phrases 句型卡
+		&course.Enrollment{},       // enrollments 报名
+		&course.Checkin{},          // course_checkins 打卡
 	)
 }

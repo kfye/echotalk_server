@@ -9,6 +9,7 @@ import (
 	"github.com/echotalk/echotalk_server/internal/config"
 	"github.com/echotalk/echotalk_server/internal/middleware"
 	"github.com/echotalk/echotalk_server/internal/module/content"
+	"github.com/echotalk/echotalk_server/internal/module/course"
 	"github.com/echotalk/echotalk_server/internal/module/payment"
 	"github.com/echotalk/echotalk_server/internal/module/payment/channel"
 	"github.com/echotalk/echotalk_server/internal/module/training"
@@ -55,6 +56,7 @@ func Setup(d Deps) *gin.Engine {
 	content.RegisterRoutes(api, d.DB, d.JWT, d.Members)
 	payment.RegisterRoutes(api, d.DB, d.JWT, d.PayChannel)
 	training.RegisterRoutes(api, d.DB, d.JWT, d.Speech, d.Audio, d.Logger)
+	course.RegisterRoutes(api, d.DB, d.JWT)
 	// ops 模块路由待接入。
 
 	return engine

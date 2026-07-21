@@ -111,3 +111,13 @@ var (
 	ErrSpeechUnavailable = New(15001, "语音服务暂不可用")
 	ErrAudioFormat       = NewHTTP(15002, http.StatusBadRequest, "音频格式不符合要求(16K/16bit/单声道WAV)")
 )
+
+// course 17xxx —— 训练营（业务 200）
+var (
+	ErrCourseNotFound   = New(17001, "训练营不存在")
+	ErrLessonNotFound   = New(17002, "课程不存在")
+	ErrLessonLocked     = New(17003, "该课尚未解锁")
+	ErrNotEnrolled      = New(17004, "未报名该训练营")
+	ErrAlreadyEnrolled  = New(17005, "已报名该训练营")
+	ErrAlreadyCheckedIn = New(17006, "今日已打卡")
+)
