@@ -71,3 +71,183 @@ func (h *Handler) Checkin(c *gin.Context) {
 	}
 	response.Success(c, res)
 }
+
+// --- 管理端：训练营 / 课 / 报名（需鉴权；角色留后续）---
+
+// AdminCourses 训练营分页列表（含草稿），可按 status 过滤。
+func (h *Handler) AdminCourses(c *gin.Context) {
+	page, _ := strconv.Atoi(c.Query("page"))
+	pageSize, _ := strconv.Atoi(c.Query("page_size"))
+	var status *int8
+	if s := c.Query("status"); s != "" {
+		if n, err := strconv.ParseInt(s, 10, 8); err == nil {
+			v := int8(n)
+			status = &v
+		}
+	}
+	items, total, page, pageSize, err := h.svc.ListCoursesAdmin(status, page, pageSize)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.SuccessPage(c, items, total, page, pageSize)
+}
+
+// AdminCreateCourse 新增训练营。
+func (h *Handler) AdminCreateCourse(c *gin.Context) {
+	var in CourseInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		response.Error(c, errcode.ErrParam.WithMsg(validatorx.Message(err)))
+		return
+	}
+	item, err := h.svc.CreateCourse(in)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, item)
+}
+
+// AdminUpdateCourse 编辑训练营。
+func (h *Handler) AdminUpdateCourse(c *gin.Context) {
+	id, err := parseID(c)
+	if err != nil {
+		response.Error(c, errcode.ErrParam)
+		return
+	}
+	var in CourseInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		response.Error(c, errcode.ErrParam.WithMsg(validatorx.Message(err)))
+		return
+	}
+	item, err := h.svc.UpdateCourse(id, in)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, item)
+}
+
+// AdminUpdateCourseStatus 训练营上下架。
+func (h *Handler) AdminUpdateCourseStatus(c *gin.Context) {
+	id, err := parseID(c)
+	if err != nil {
+		response.Error(c, errcode.ErrParam)
+		return
+	}
+	var in CourseStatusInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		response.Error(c, errcode.ErrParam.WithMsg(validatorx.Message(err)))
+		return
+	}
+	item, err := h.svc.UpdateCourseStatus(id, *in.Status)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, item)
+}
+
+// AdminDeleteCourse 软删训练营。
+func (h *Handler) AdminDeleteCourse(c *gin.Context) {
+	id, err := parseID(c)
+	if err != nil {
+		response.Error(c, errcode.ErrParam)
+		return
+	}
+	if err := h.svc.DeleteCourse(id); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
+// AdminLessons 列某训练营全部课（含词句卡）。
+func (h *Handler) AdminLessons(c *gin.Context) {
+	id, err := parseID(c)
+	if err != nil {
+		response.Error(c, errcode.ErrParam)
+		return
+	}
+	items, err := h.svc.ListLessons(id)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, items)
+}
+
+// AdminCreateLesson 在某训练营下新增每日课。
+func (h *Handler) AdminCreateLesson(c *gin.Context) {
+	id, err := parseID(c)
+	if err != nil {
+		response.Error(c, errcode.ErrParam)
+		return
+	}
+	var in LessonInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		response.Error(c, errcode.ErrParam.WithMsg(validatorx.Message(err)))
+		return
+	}
+	item, err := h.svc.CreateLesson(id, in)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, item)
+}
+
+// AdminUpdateLesson 编辑每日课（词句卡整替换）。
+func (h *Handler) AdminUpdateLesson(c *gin.Context) {
+	id, err := parseID(c)
+	if err != nil {
+		response.Error(c, errcode.ErrParam)
+		return
+	}
+	var in LessonInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		response.Error(c, errcode.ErrParam.WithMsg(validatorx.Message(err)))
+		return
+	}
+	item, err := h.svc.UpdateLesson(id, in)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, item)
+}
+
+// AdminDeleteLesson 软删每日课。
+func (h *Handler) AdminDeleteLesson(c *gin.Context) {
+	id, err := parseID(c)
+	if err != nil {
+		response.Error(c, errcode.ErrParam)
+		return
+	}
+	if err := h.svc.DeleteLesson(id); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
+// AdminEnroll 手动报名。
+func (h *Handler) AdminEnroll(c *gin.Context) {
+	var req EnrollRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, errcode.ErrParam.WithMsg(validatorx.Message(err)))
+		return
+	}
+	res, err := h.svc.AdminEnroll(req)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, res)
+}
+
+// parseID 从路径取 :id 并转 uint。
+func parseID(c *gin.Context) (uint, error) {
+	n, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	return uint(n), err
+}

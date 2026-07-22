@@ -10,6 +10,9 @@ import (
 // ErrDuplicateCheckin 打卡唯一键冲突（并发重复打卡兜底）。
 var ErrDuplicateCheckin = errors.New("duplicate checkin")
 
+// ErrDuplicateEnrollment 报名唯一键冲突（一人一营）。
+var ErrDuplicateEnrollment = errors.New("duplicate enrollment")
+
 // Repository 训练营数据访问。
 type Repository struct {
 	db *gorm.DB
@@ -130,4 +133,116 @@ func (r *Repository) Tx(fn func(txRepo *Repository) error) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		return fn(&Repository{db: tx})
 	})
+}
+
+// ---------------- 管理端 ----------------
+
+// CreateCourse 新建训练营。
+func (r *Repository) CreateCourse(c *CoursePlan) error { return r.db.Create(c).Error }
+
+// ListCoursesAdmin 管理端分页列训练营（含草稿，软删自动排除）；status 非 nil 时过滤。
+func (r *Repository) ListCoursesAdmin(status *int8, page, pageSize int) ([]CoursePlan, int64, error) {
+	q := r.db.Model(&CoursePlan{})
+	if status != nil {
+		q = q.Where("status = ?", *status)
+	}
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []CoursePlan
+	err := q.Order("sort DESC, id ASC").
+		Offset((page - 1) * pageSize).Limit(pageSize).
+		Find(&list).Error
+	return list, total, err
+}
+
+// UpdateCourse 全字段保存训练营。
+func (r *Repository) UpdateCourse(c *CoursePlan) error { return r.db.Save(c).Error }
+
+// DeleteCourse 软删训练营。
+func (r *Repository) DeleteCourse(id uint) error { return r.db.Delete(&CoursePlan{}, id).Error }
+
+// GetLessonByID 按 ID 取每日课；不存在返回 (nil, nil)。
+func (r *Repository) GetLessonByID(id uint) (*DailyLesson, error) {
+	var l DailyLesson
+	if err := r.db.First(&l, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &l, nil
+}
+
+// ListLessonsByCourse 取某训练营全部课，按 day_index 升序。
+func (r *Repository) ListLessonsByCourse(courseID uint) ([]DailyLesson, error) {
+	var list []DailyLesson
+	err := r.db.Where("course_id = ?", courseID).Order("day_index ASC").Find(&list).Error
+	return list, err
+}
+
+// CreateLessonWithCards 事务内建课 + 词句卡。
+func (r *Repository) CreateLessonWithCards(l *DailyLesson, words []LessonWord, phrases []LessonPhrase) error {
+	return r.Tx(func(tx *Repository) error {
+		if err := tx.db.Create(l).Error; err != nil {
+			return err
+		}
+		return tx.saveCards(l.ID, words, phrases)
+	})
+}
+
+// UpdateLessonWithCards 事务内保存课 + 用新词句卡整替换旧的。
+func (r *Repository) UpdateLessonWithCards(l *DailyLesson, words []LessonWord, phrases []LessonPhrase) error {
+	return r.Tx(func(tx *Repository) error {
+		if err := tx.db.Save(l).Error; err != nil {
+			return err
+		}
+		if err := tx.db.Where("lesson_id = ?", l.ID).Delete(&LessonWord{}).Error; err != nil {
+			return err
+		}
+		if err := tx.db.Where("lesson_id = ?", l.ID).Delete(&LessonPhrase{}).Error; err != nil {
+			return err
+		}
+		return tx.saveCards(l.ID, words, phrases)
+	})
+}
+
+// saveCards 批量写词句卡（lessonID 回填）。
+func (r *Repository) saveCards(lessonID uint, words []LessonWord, phrases []LessonPhrase) error {
+	for i := range words {
+		words[i].LessonID = lessonID
+		if err := r.db.Create(&words[i]).Error; err != nil {
+			return err
+		}
+	}
+	for i := range phrases {
+		phrases[i].LessonID = lessonID
+		if err := r.db.Create(&phrases[i]).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// DeleteLesson 软删每日课（词句卡保留，随课不再展示）。
+func (r *Repository) DeleteLesson(id uint) error { return r.db.Delete(&DailyLesson{}, id).Error }
+
+// UserExists 校验目标用户是否存在（手动报名用，轻查表名，不 import user 包）。
+func (r *Repository) UserExists(userID uint) (bool, error) {
+	var count int64
+	if err := r.db.Table("users").Where("id = ? AND deleted_at IS NULL", userID).Limit(1).Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// CreateEnrollment 建报名；命中唯一键(用户+营)冲突返回 ErrDuplicateEnrollment。
+func (r *Repository) CreateEnrollment(e *Enrollment) error {
+	err := r.db.Create(e).Error
+	var myErr *mysql.MySQLError
+	if errors.As(err, &myErr) && myErr.Number == 1062 {
+		return ErrDuplicateEnrollment
+	}
+	return err
 }
