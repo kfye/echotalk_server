@@ -3,8 +3,12 @@ package course
 import (
 	"errors"
 
+	"github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
 )
+
+// ErrDuplicateCheckin 打卡唯一键冲突（并发重复打卡兜底）。
+var ErrDuplicateCheckin = errors.New("duplicate checkin")
 
 // Repository 训练营数据访问。
 type Repository struct {
@@ -69,4 +73,61 @@ func (r *Repository) CheckinExists(enrollmentID uint, day int) (bool, error) {
 		Where("enrollment_id = ? AND day_index = ?", enrollmentID, day).
 		Limit(1).Count(&count).Error
 	return count > 0, err
+}
+
+// ListWordsByLesson 取某课词卡，按 sort 升序、id 升序。
+func (r *Repository) ListWordsByLesson(lessonID uint) ([]LessonWord, error) {
+	var list []LessonWord
+	err := r.db.Where("lesson_id = ?", lessonID).Order("sort ASC, id ASC").Find(&list).Error
+	return list, err
+}
+
+// ListPhrasesByLesson 取某课句型卡，按 sort 升序、id 升序。
+func (r *Repository) ListPhrasesByLesson(lessonID uint) ([]LessonPhrase, error) {
+	var list []LessonPhrase
+	err := r.db.Where("lesson_id = ?", lessonID).Order("sort ASC, id ASC").Find(&list).Error
+	return list, err
+}
+
+// GetVideoForLesson 轻查 videos 表取课内教学视频字段；videoID=0 或不存在/已删返回 (nil, nil)。
+// 直查表名（仿 payment.UserExists），不 import content，避免跨模块耦合。
+func (r *Repository) GetVideoForLesson(videoID uint) (*LessonVideo, error) {
+	if videoID == 0 {
+		return nil, nil
+	}
+	var v LessonVideo
+	err := r.db.Table("videos").
+		Select("id, title, cover_url, hls_url, subtitle_en_url, subtitle_cn_url, duration").
+		Where("id = ? AND deleted_at IS NULL", videoID).
+		Limit(1).Scan(&v).Error
+	if err != nil {
+		return nil, err
+	}
+	if v.ID == 0 { // 未命中
+		return nil, nil
+	}
+	return &v, nil
+}
+
+// CreateCheckin 写打卡记录；命中唯一键(报名+天)冲突返回 ErrDuplicateCheckin。
+func (r *Repository) CreateCheckin(c *Checkin) error {
+	err := r.db.Create(c).Error
+	var myErr *mysql.MySQLError
+	if errors.As(err, &myErr) && myErr.Number == 1062 {
+		return ErrDuplicateCheckin
+	}
+	return err
+}
+
+// IncrCheckinCount 累计打卡数 +1。
+func (r *Repository) IncrCheckinCount(enrollmentID uint) error {
+	return r.db.Model(&Enrollment{}).Where("id = ?", enrollmentID).
+		UpdateColumn("checkin_count", gorm.Expr("checkin_count + 1")).Error
+}
+
+// Tx 在事务内执行 fn，fn 收到绑定该事务的子仓库；返回 error 自动回滚。
+func (r *Repository) Tx(fn func(txRepo *Repository) error) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		return fn(&Repository{db: tx})
+	})
 }

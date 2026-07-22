@@ -20,5 +20,7 @@ func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, jwtManager *jwt.Manager) {
 	{
 		g.GET("/plans", h.Plans)
 		g.GET("/my", h.My)
+		g.GET("/lessons/:day", h.LessonDetail)
+		g.POST("/checkin", h.Checkin)
 	}
 }
